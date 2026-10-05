@@ -11,24 +11,25 @@ use crate::config::{
 use crate::crypto::generate_salt;
 use crate::memguard::ProtectedBuffer;
 
-fn generate_temp_path(target: &Path) -> std::path::PathBuf {
-    let random_bytes = generate_salt().unwrap_or([0x5A; 16]);
+fn generate_temp_path(target: &Path) -> Result<std::path::PathBuf, VaultError> {
+    let random_bytes = generate_salt()?;
     let hex_suffix = hex_encode(&random_bytes[0..8]);
     let file_name = target
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("vault");
     let temp_name = format!(".{}.tmp.{}", file_name, hex_suffix);
-    match target.parent() {
+    Ok(match target.parent() {
         Some(parent) => parent.join(temp_name),
         None => std::path::PathBuf::from(temp_name),
-    }
+    })
 }
 
 fn hex_encode(bytes: &[u8]) -> String {
+    use std::fmt::Write;
     let mut s = String::with_capacity(bytes.len() * 2);
     for b in bytes {
-        s.push_str(&format!("{:02x}", b));
+        let _ = write!(s, "{:02x}", b);
     }
     s
 }
@@ -60,7 +61,7 @@ pub fn seal_to_file<P: AsRef<Path>>(
         }
     }
 
-    let temp_path = generate_temp_path(target_path);
+    let temp_path = generate_temp_path(target_path)?;
 
     let write_result = (|| -> Result<(), VaultError> {
         let mut options = OpenOptions::new();

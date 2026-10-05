@@ -1,10 +1,7 @@
 use super::error::VaultError;
-use crate::config::{
-    DEFAULT_ARGON2_ITERATIONS, DEFAULT_ARGON2_MEMORY_KIB, DEFAULT_ARGON2_PARALLELISM,
-    DEFAULT_SALT_LEN_BYTES, SecurityConfig, VAULT_MAGIC_HEADER,
-};
+use crate::config::{DEFAULT_SALT_LEN_BYTES, SecurityConfig, VAULT_MAGIC_HEADER};
 
-pub const HEADER_SIZE: usize = 36;
+pub const HEADER_SIZE: usize = 6 + 1 + 1 + DEFAULT_SALT_LEN_BYTES + 4 + 4 + 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -64,17 +61,6 @@ impl VaultHeader {
         }
     }
 
-    pub fn new_default(salt: [u8; DEFAULT_SALT_LEN_BYTES]) -> Self {
-        Self {
-            cipher: CipherSuite::ChaCha20Poly1305,
-            kdf: KdfAlgorithm::Argon2id,
-            salt,
-            argon2_memory_kib: DEFAULT_ARGON2_MEMORY_KIB,
-            argon2_iterations: DEFAULT_ARGON2_ITERATIONS,
-            argon2_parallelism: DEFAULT_ARGON2_PARALLELISM,
-        }
-    }
-
     pub fn serialize(&self) -> [u8; HEADER_SIZE] {
         let mut buf = [0u8; HEADER_SIZE];
         buf[0..6].copy_from_slice(&VAULT_MAGIC_HEADER);
@@ -92,7 +78,7 @@ impl VaultHeader {
             return Err(VaultError::HeaderTooShort);
         }
 
-        if &input[0..6] != &VAULT_MAGIC_HEADER {
+        if input[0..6] != VAULT_MAGIC_HEADER {
             return Err(VaultError::InvalidMagicHeader);
         }
 
@@ -102,9 +88,9 @@ impl VaultHeader {
         let mut salt = [0u8; DEFAULT_SALT_LEN_BYTES];
         salt.copy_from_slice(&input[8..24]);
 
-        let argon2_memory_kib = u32::from_be_bytes(input[24..28].try_into().unwrap());
-        let argon2_iterations = u32::from_be_bytes(input[28..32].try_into().unwrap());
-        let argon2_parallelism = u32::from_be_bytes(input[32..36].try_into().unwrap());
+        let argon2_memory_kib = u32::from_be_bytes([input[24], input[25], input[26], input[27]]);
+        let argon2_iterations = u32::from_be_bytes([input[28], input[29], input[30], input[31]]);
+        let argon2_parallelism = u32::from_be_bytes([input[32], input[33], input[34], input[35]]);
 
         let header = Self {
             cipher,
@@ -122,11 +108,12 @@ impl VaultHeader {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::SecurityConfig;
 
     #[test]
     fn test_header_roundtrip() {
         let salt = [42u8; 16];
-        let header = VaultHeader::new_default(salt);
+        let header = VaultHeader::new(CipherSuite::ChaCha20Poly1305, salt, &SecurityConfig::default());
         let serialized = header.serialize();
         assert_eq!(serialized.len(), HEADER_SIZE);
 
@@ -138,7 +125,7 @@ mod tests {
     #[test]
     fn test_reject_invalid_magic() {
         let salt = [1u8; 16];
-        let mut serialized = VaultHeader::new_default(salt).serialize();
+        let mut serialized = VaultHeader::new(CipherSuite::ChaCha20Poly1305, salt, &SecurityConfig::default()).serialize();
         serialized[0] = b'X';
 
         let res = VaultHeader::deserialize(&serialized);
@@ -155,7 +142,7 @@ mod tests {
     #[test]
     fn test_reject_unsupported_cipher() {
         let salt = [1u8; 16];
-        let mut serialized = VaultHeader::new_default(salt).serialize();
+        let mut serialized = VaultHeader::new(CipherSuite::ChaCha20Poly1305, salt, &SecurityConfig::default()).serialize();
         serialized[6] = 0xFF;
 
         let res = VaultHeader::deserialize(&serialized);
@@ -165,7 +152,7 @@ mod tests {
     #[test]
     fn test_reject_unsupported_kdf() {
         let salt = [1u8; 16];
-        let mut serialized = VaultHeader::new_default(salt).serialize();
+        let mut serialized = VaultHeader::new(CipherSuite::ChaCha20Poly1305, salt, &SecurityConfig::default()).serialize();
         serialized[7] = 0xAA;
 
         let res = VaultHeader::deserialize(&serialized);
