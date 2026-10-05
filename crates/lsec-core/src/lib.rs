@@ -5,4 +5,5 @@
 pub mod config;
 pub mod crypto;
 pub mod memguard;
+pub mod totp;
 pub mod vault;
