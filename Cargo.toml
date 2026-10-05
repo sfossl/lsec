@@ -1,0 +1,22 @@
+[workspace]
+members = [
+    "crates/lsec-core",
+    "crates/lsec-ffi",
+    "crates/lsec-wasm",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Akash Sharma (Shwetambara FOSS Labs)"]
+license = "Apache-2.0"
+repository = "https://github.com/sfossl/lsec"
+
+[workspace.dependencies]
+zeroize = { version = "1.8", default-features = false, features = ["alloc"] }
+subtle = { version = "2.6", default-features = false }
+argon2 = { version = "0.5", default-features = false, features = ["alloc"] }
+getrandom = { version = "0.2", default-features = false }
+chacha20poly1305 = { version = "0.10", default-features = false, features = ["alloc"] }
+aes-gcm = { version = "0.10", default-features = false, features = ["aes", "alloc"] }
