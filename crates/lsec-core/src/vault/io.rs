@@ -5,9 +5,9 @@ use std::path::Path;
 use super::envelope::{seal, unseal};
 use super::error::VaultError;
 use super::format::CipherSuite;
-use crate::config::{
-    POSIX_DIR_PERMISSIONS, POSIX_FILE_PERMISSIONS, SecurityConfig,
-};
+#[cfg(unix)]
+use crate::config::{POSIX_DIR_PERMISSIONS, POSIX_FILE_PERMISSIONS};
+use crate::config::SecurityConfig;
 use crate::crypto::generate_salt;
 use crate::memguard::ProtectedBuffer;
 
