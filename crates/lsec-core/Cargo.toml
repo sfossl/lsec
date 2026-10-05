@@ -24,3 +24,6 @@ libc = { version = "0.2", default-features = false }
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", default-features = false, features = ["Win32_System_Memory"] }
 
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.2", default-features = false, features = ["custom"] }
+
