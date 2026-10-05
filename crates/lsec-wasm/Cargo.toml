@@ -12,4 +12,5 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 lsec-core = { path = "../lsec-core" }
+zeroize = { workspace = true }
 
