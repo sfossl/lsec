@@ -17,6 +17,10 @@ mod sys {
     use core::ptr::NonNull;
     use std::io::Error;
 
+    pub(crate) fn page_size() -> usize {
+        16
+    }
+
     pub(crate) fn lock_memory(_ptr: NonNull<u8>, _len: usize) -> Result<(), Error> {
         Ok(())
     }
@@ -79,23 +83,27 @@ impl ProtectedBuffer {
             });
         }
 
-        let align = 16.max(core::mem::align_of::<usize>());
-        let layout = Layout::from_size_align(len, align).map_err(|_| MemguardError::AllocationFailed)?;
+        let page_sz = sys::page_size();
+        let alloc_size = len
+            .checked_add(page_sz - 1)
+            .map(|n| n & !(page_sz - 1))
+            .ok_or(MemguardError::AllocationFailed)?;
+        let layout = Layout::from_size_align(alloc_size, page_sz)
+            .map_err(|_| MemguardError::AllocationFailed)?;
 
         let raw_ptr = unsafe { alloc(layout) };
         let ptr = NonNull::new(raw_ptr).ok_or(MemguardError::AllocationFailed)?;
 
         unsafe {
-            core::ptr::write_bytes(ptr.as_ptr(), 0, len);
+            core::ptr::write_bytes(ptr.as_ptr(), 0, alloc_size);
         }
 
-        if let Err(e) = sys::lock_memory(ptr, len) {
-            // best effort cleanup on lock failure
+        if let Err(e) = sys::lock_memory(ptr, alloc_size) {
             unsafe { dealloc(ptr.as_ptr(), layout) };
             return Err(MemguardError::LockFailed(e));
         }
 
-        let _ = sys::mark_dont_dump(ptr, len);
+        let _ = sys::mark_dont_dump(ptr, alloc_size);
 
         Ok(Self { ptr, len, layout })
     }
@@ -163,7 +171,7 @@ impl Drop for ProtectedBuffer {
     fn drop(&mut self) {
         if self.len > 0 {
             self.wipe();
-            let _ = sys::unlock_memory(self.ptr, self.len);
+            let _ = sys::unlock_memory(self.ptr, self.layout.size());
             unsafe {
                 dealloc(self.ptr.as_ptr(), self.layout);
             }
