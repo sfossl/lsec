@@ -1,0 +1,13 @@
+# folders
+target/
+
+# compiled bins and libs
+*.so
+*.dylib
+*.dll
+*.wasm
+*.a
+*.lib
+
+#files
+lsec.code-workspace
