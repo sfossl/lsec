@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use core::ptr::NonNull;
 use std::io::Error;
 
