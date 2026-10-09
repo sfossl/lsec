@@ -1,4 +1,4 @@
-# lAPI Reference
+# API Reference
 
 ## Module: `lsec-core::config`
 
