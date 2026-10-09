@@ -1,5 +1,9 @@
 use super::error::VaultError;
-use crate::config::{DEFAULT_SALT_LEN_BYTES, SecurityConfig, VAULT_MAGIC_HEADER};
+use crate::config::{
+    DEFAULT_SALT_LEN_BYTES, MAX_ARGON2_ITERATIONS, MAX_ARGON2_MEMORY_KIB, MAX_ARGON2_PARALLELISM,
+    MIN_ARGON2_ITERATIONS, MIN_ARGON2_MEMORY_KIB, MIN_ARGON2_PARALLELISM, SecurityConfig,
+    VAULT_MAGIC_HEADER,
+};
 
 pub const HEADER_SIZE: usize = 6 + 1 + 1 + DEFAULT_SALT_LEN_BYTES + 4 + 4 + 4;
 
@@ -92,6 +96,13 @@ impl VaultHeader {
         let argon2_iterations = u32::from_be_bytes([input[28], input[29], input[30], input[31]]);
         let argon2_parallelism = u32::from_be_bytes([input[32], input[33], input[34], input[35]]);
 
+        if !(MIN_ARGON2_MEMORY_KIB..=MAX_ARGON2_MEMORY_KIB).contains(&argon2_memory_kib)
+            || !(MIN_ARGON2_ITERATIONS..=MAX_ARGON2_ITERATIONS).contains(&argon2_iterations)
+            || !(MIN_ARGON2_PARALLELISM..=MAX_ARGON2_PARALLELISM).contains(&argon2_parallelism)
+        {
+            return Err(VaultError::InvalidKdfParameters);
+        }
+
         let header = Self {
             cipher,
             kdf,
@@ -157,6 +168,28 @@ mod tests {
 
         let res = VaultHeader::deserialize(&serialized);
         assert!(matches!(res, Err(VaultError::UnsupportedKdf(0xAA))));
+    }
+
+    #[test]
+    fn test_reject_out_of_bounds_kdf_params() {
+        let salt = [1u8; 16];
+        let mut serialized = VaultHeader::new(CipherSuite::ChaCha20Poly1305, salt, &SecurityConfig::default()).serialize();
+        // set memory kib to 0
+        serialized[24..28].copy_from_slice(&0u32.to_be_bytes());
+        let res = VaultHeader::deserialize(&serialized);
+        assert!(matches!(res, Err(VaultError::InvalidKdfParameters)));
+
+        // set iterations to 0
+        let mut serialized2 = VaultHeader::new(CipherSuite::ChaCha20Poly1305, salt, &SecurityConfig::default()).serialize();
+        serialized2[28..32].copy_from_slice(&0u32.to_be_bytes());
+        let res2 = VaultHeader::deserialize(&serialized2);
+        assert!(matches!(res2, Err(VaultError::InvalidKdfParameters)));
+
+        // set iterations excessively high
+        let mut serialized3 = VaultHeader::new(CipherSuite::ChaCha20Poly1305, salt, &SecurityConfig::default()).serialize();
+        serialized3[28..32].copy_from_slice(&10_000u32.to_be_bytes());
+        let res3 = VaultHeader::deserialize(&serialized3);
+        assert!(matches!(res3, Err(VaultError::InvalidKdfParameters)));
     }
 }
 
