@@ -111,3 +111,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 | Buffer Zeroize + Release | Volatile zeroization and unlock on drop | 0 heap allocations |
 | Argon2id Key Derivation | Calibrated memory and time passes | Bounded KDF buffer |
 | TOTP Code Generation | Stack-allocated HMAC and constant-time modular reduction | 0 heap allocations |
+
+## 6. Documentation
+
+- [Getting Started](.docs/getting-started.md): Installation steps across Rust, Go and JavaScript + quickstart examples.
+- [API Reference](.docs/api-reference.md): Detailed parameter tables, constant limits, function signatures and C-ABI return codes.
