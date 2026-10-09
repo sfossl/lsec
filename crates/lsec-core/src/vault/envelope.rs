@@ -119,8 +119,8 @@ mod tests {
         let secret = b"confidential-data";
         let mut sealed = seal(secret, b"correct-password", &config, CipherSuite::ChaCha20Poly1305).expect("ok");
 
-        // tamper with iterations in header
-        sealed[31] ^= 0x01;
+        // tamper with salt in header
+        sealed[8] ^= 0x01;
 
         let res = unseal(&sealed, b"correct-password");
         assert!(matches!(res, Err(VaultError::Crypto(_))));
