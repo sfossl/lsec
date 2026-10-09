@@ -5,6 +5,10 @@ use std::io::Error;
 
 const DEFAULT_PAGE_SIZE: usize = 4096;
 
+pub(crate) fn page_size() -> usize {
+    DEFAULT_PAGE_SIZE
+}
+
 fn align_to_page(ptr: NonNull<u8>, len: usize) -> (usize, usize) {
     let sz = DEFAULT_PAGE_SIZE;
     let addr = ptr.as_ptr() as usize;
