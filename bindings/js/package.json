@@ -1,0 +1,33 @@
+{
+  "name": "@sfossl/lsec",
+  "version": "0.1.0",
+  "description": "JavaScript and WebAssembly client SDK for lsec: memory protection, local encrypted vault and TOTP authentication.",
+  "type": "module",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.js"
+    }
+  },
+  "scripts": {
+    "test": "node test.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sfossl/lsec.git"
+  },
+  "keywords": [
+    "security",
+    "vault",
+    "encryption",
+    "totp",
+    "authenticator",
+    "wasm",
+    "chacha20poly1305",
+    "argon2"
+  ],
+  "author": "Akash Sharma (Shwetambara FOSS Labs)",
+  "license": "Apache-2.0"
+}
