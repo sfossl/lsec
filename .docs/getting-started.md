@@ -32,6 +32,29 @@ import { init, Buffer, Vault, TOTP } from './bindings/js/index.js';
 await init();
 ```
 
+### Python Projects
+
+Build the shared library and install the `ctypes` binding (no compiler or third-party packages needed):
+
+```bash
+cargo build -p lsec-ffi --release
+pip install -e bindings/python
+```
+
+```python
+import lsec
+
+blob = lsec.seal(b"confidential-offline-records", b"user-strong-passphrase")
+with lsec.unseal(blob, b"user-strong-passphrase") as secret:  # page-locked SecureBuffer
+    ...
+
+with lsec.Totp("JBSWY3DPEHPK3PXP") as otp:
+    assert otp.verify(otp.now())
+```
+
+The library is located automatically in the cargo `target/` directory or on the system search path;
+set `LSEC_LIB_PATH` to point at a specific copy. See [bindings/python/README.md](../bindings/python/README.md).
+
 ---
 
 ## Quick Starts

@@ -9,6 +9,7 @@ Hardened local security primitives providing page-locked memory, anti-dump guara
 - `crates/lsec-wasm`: Zero-dependency WebAssembly interface exposing linear memory management and host entropy hooks for browsers and PWAs.
 - `bindings/go`: Idiomatic Go client using C-ABI bindings.
 - `bindings/js`: Zero-dependency JavaScript and TypeScript SDK for Node.js, browsers and offline web apps.
+- `bindings/python`: Zero-dependency Python package over the C-ABI using standard `ctypes` (no compiler required).
 
 ## 2. Feature and Package Matrix
 
@@ -19,6 +20,7 @@ Hardened local security primitives providing page-locked memory, anti-dump guara
 | `crates/lsec-wasm` | WebAssembly interface for browsers and PWAs | `lsec-core` (linear memory) |
 | `bindings/go` | Idiomatic Go package via C-ABI | `liblsec_ffi` shared library |
 | `bindings/js` | JavaScript and TypeScript SDK with type definitions | `lsec_wasm.wasm` WebAssembly binary |
+| `bindings/python` | Python package via C-ABI (`ctypes`) | `liblsec_ffi` shared library |
 
 ## 3. Minimal Working Examples
 
