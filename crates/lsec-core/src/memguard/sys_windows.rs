@@ -1,8 +1,7 @@
-#![allow(dead_code)]
-
 use core::ptr::NonNull;
 use std::io::Error;
 
+// shortcut: hardcoded 4kb page size for x86_64 windows, query GetSystemInfo if arm64 page sizes differ
 const DEFAULT_PAGE_SIZE: usize = 4096;
 
 pub(crate) fn page_size() -> usize {
@@ -10,7 +9,7 @@ pub(crate) fn page_size() -> usize {
 }
 
 fn align_to_page(ptr: NonNull<u8>, len: usize) -> (usize, usize) {
-    let sz = DEFAULT_PAGE_SIZE;
+    let sz = page_size();
     let addr = ptr.as_ptr() as usize;
     let page_start = addr & !(sz - 1);
     let page_end = (addr.saturating_add(len).saturating_add(sz - 1)) & !(sz - 1);
