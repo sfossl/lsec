@@ -4,9 +4,7 @@ use std::panic::catch_unwind;
 use std::slice;
 
 use lsec_core::config::SecurityConfig;
-use lsec_core::totp::{
-    decode_secret, generate_code, verify_code_at, TotpAlgorithm, TotpError,
-};
+use lsec_core::totp::{decode_secret, generate_code, verify_code_at, TotpAlgorithm, TotpError};
 
 use crate::error::{
     LSEC_ERR_BUFFER_TOO_SMALL, LSEC_ERR_INVALID_PARAM, LSEC_ERR_NULL_POINTER, LSEC_ERR_PANIC,
@@ -96,7 +94,8 @@ pub unsafe extern "C" fn lsec_totp_generate(
             Ok(code_str) => {
                 let bytes = code_str.as_bytes();
                 unsafe {
-                    let out_slice = slice::from_raw_parts_mut(out_code as *mut u8, out_code_capacity);
+                    let out_slice =
+                        slice::from_raw_parts_mut(out_code as *mut u8, out_code_capacity);
                     out_slice[..bytes.len()].copy_from_slice(bytes);
                     out_slice[bytes.len()] = 0;
                 }
@@ -157,4 +156,3 @@ pub unsafe extern "C" fn lsec_totp_verify(
 
     result.unwrap_or(LSEC_ERR_PANIC)
 }
-
