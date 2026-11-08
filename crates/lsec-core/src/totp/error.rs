@@ -1,5 +1,5 @@
-use core::fmt;
 use crate::memguard::MemguardError;
+use core::fmt;
 
 #[derive(Debug)]
 pub enum TotpError {
@@ -16,7 +16,11 @@ impl fmt::Display for TotpError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidStepSeconds => write!(f, "step interval must be greater than zero"),
-            Self::InvalidDigits(d) => write!(f, "unsupported totp code length: {} digits (expected 6 to 8)", d),
+            Self::InvalidDigits(d) => write!(
+                f,
+                "unsupported totp code length: {} digits (expected 6 to 8)",
+                d
+            ),
             Self::EmptySecret => write!(f, "totp secret seed cannot be empty"),
             Self::InvalidBase32 => write!(f, "invalid base32 secret encoding"),
             Self::InvalidKeyLength => write!(f, "hmac key initialization failed"),
@@ -33,4 +37,3 @@ impl From<MemguardError> for TotpError {
         Self::Memguard(err)
     }
 }
-
