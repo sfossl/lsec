@@ -1,5 +1,5 @@
-use core::fmt;
 use crate::memguard::MemguardError;
+use core::fmt;
 
 #[derive(Debug)]
 pub enum CryptoError {
@@ -18,9 +18,15 @@ impl fmt::Display for CryptoError {
             Self::KdfError(msg) => write!(f, "kdf error: {}", msg),
             Self::RngError => write!(f, "system entropy generation failed"),
             Self::EncryptionFailed => write!(f, "authenticated encryption failed"),
-            Self::DecryptionFailed => write!(f, "decryption or authentication tag verification failed"),
-            Self::InvalidKeyLength(len) => write!(f, "invalid key length of {} bytes, expected 32", len),
-            Self::InvalidCiphertextLength => write!(f, "ciphertext length is too short to contain nonce and tag"),
+            Self::DecryptionFailed => {
+                write!(f, "decryption or authentication tag verification failed")
+            }
+            Self::InvalidKeyLength(len) => {
+                write!(f, "invalid key length of {} bytes, expected 32", len)
+            }
+            Self::InvalidCiphertextLength => {
+                write!(f, "ciphertext length is too short to contain nonce and tag")
+            }
             Self::Memguard(err) => write!(f, "memguard error: {}", err),
         }
     }
@@ -33,4 +39,3 @@ impl From<MemguardError> for CryptoError {
         Self::Memguard(err)
     }
 }
-
