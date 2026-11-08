@@ -10,7 +10,7 @@ resolver = "2"
 version = "0.1.0"
 edition = "2021"
 authors = ["Akash Sharma (Shwetambara FOSS Labs)"]
-license = "Apache-2.0"
+license = "MIT"
 repository = "https://github.com/sfossl/lsec"
 
 [workspace.dependencies]
