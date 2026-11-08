@@ -44,7 +44,9 @@ pub enum MemguardError {
 impl fmt::Display for MemguardError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ExceedsMaxAllocation(len) => write!(f, "allocation of {} bytes exceeds limit", len),
+            Self::ExceedsMaxAllocation(len) => {
+                write!(f, "allocation of {} bytes exceeds limit", len)
+            }
             Self::AllocationFailed => write!(f, "memory allocation failed"),
             Self::LockFailed(err) => write!(f, "failed to lock memory into ram: {}", err),
         }
@@ -280,4 +282,3 @@ mod tests {
         }
     }
 }
-
