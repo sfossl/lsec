@@ -59,4 +59,3 @@ pub(crate) fn unlock_memory(ptr: NonNull<u8>, len: usize) -> Result<(), Error> {
 pub(crate) fn mark_dont_dump(_ptr: NonNull<u8>, _len: usize) -> Result<(), Error> {
     Ok(())
 }
-
