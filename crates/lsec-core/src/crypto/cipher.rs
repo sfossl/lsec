@@ -1,5 +1,5 @@
-use chacha20poly1305::aead::{Aead, KeyInit, Payload};
 use aes_gcm::{Aes256Gcm, Key as AesKey, Nonce as AesNonce};
+use chacha20poly1305::aead::{Aead, KeyInit, Payload};
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
 use zeroize::Zeroize;
 
@@ -13,11 +13,7 @@ pub fn generate_nonce() -> Result<[u8; DEFAULT_NONCE_LEN_BYTES], CryptoError> {
     Ok(nonce)
 }
 
-pub fn encrypt_chacha20(
-    key: &[u8],
-    plaintext: &[u8],
-    aad: &[u8],
-) -> Result<Vec<u8>, CryptoError> {
+pub fn encrypt_chacha20(key: &[u8], plaintext: &[u8], aad: &[u8]) -> Result<Vec<u8>, CryptoError> {
     if key.len() != DEFAULT_KEY_LEN_BYTES {
         return Err(CryptoError::InvalidKeyLength(key.len()));
     }
@@ -54,10 +50,7 @@ pub fn decrypt_chacha20(
 
     let (nonce_slice, enc_body) = ciphertext.split_at(DEFAULT_NONCE_LEN_BYTES);
     let cipher = ChaCha20Poly1305::new(Key::from_slice(key));
-    let payload = Payload {
-        msg: enc_body,
-        aad,
-    };
+    let payload = Payload { msg: enc_body, aad };
 
     let mut decrypted = cipher
         .decrypt(Nonce::from_slice(nonce_slice), payload)
@@ -109,10 +102,7 @@ pub fn decrypt_aes256_gcm(
 
     let (nonce_slice, enc_body) = ciphertext.split_at(DEFAULT_NONCE_LEN_BYTES);
     let cipher = Aes256Gcm::new(AesKey::<Aes256Gcm>::from_slice(key));
-    let payload = Payload {
-        msg: enc_body,
-        aad,
-    };
+    let payload = Payload { msg: enc_body, aad };
 
     let mut decrypted = cipher
         .decrypt(AesNonce::from_slice(nonce_slice), payload)
