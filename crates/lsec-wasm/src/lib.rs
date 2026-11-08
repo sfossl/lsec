@@ -70,10 +70,7 @@ pub unsafe extern "C" fn lsec_wasm_wipe_and_free(ptr: *mut u8, size: usize) {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn lsec_wasm_buffer_new(
-    data: *const u8,
-    len: usize,
-) -> *mut LsecWasmBuffer {
+pub unsafe extern "C" fn lsec_wasm_buffer_new(data: *const u8, len: usize) -> *mut LsecWasmBuffer {
     let result = catch_unwind(|| {
         let s = if len == 0 {
             &[][..]
@@ -352,7 +349,13 @@ pub unsafe extern "C" fn lsec_wasm_totp_verify(
             .build();
 
         match verify_code_at(sec_slice, cand_str, timestamp, &config, algo) {
-            Ok(valid) => if valid { 1 } else { 0 },
+            Ok(valid) => {
+                if valid {
+                    1
+                } else {
+                    0
+                }
+            }
             Err(_) => -4,
         }
     });
@@ -424,14 +427,8 @@ mod tests {
         assert!(!sealed_ptr.is_null());
         assert!(sealed_len > plain.len());
 
-        let unseal_handle = unsafe {
-            lsec_wasm_vault_unseal(
-                sealed_ptr,
-                sealed_len,
-                pass.as_ptr(),
-                pass.len(),
-            )
-        };
+        let unseal_handle =
+            unsafe { lsec_wasm_vault_unseal(sealed_ptr, sealed_len, pass.as_ptr(), pass.len()) };
         assert!(!unseal_handle.is_null());
 
         let unsealed_len = unsafe { lsec_wasm_buffer_len(unseal_handle) };
@@ -448,9 +445,8 @@ mod tests {
     #[test]
     fn test_wasm_totp_flow() {
         let seed_b32 = b"JBSWY3DPEHPK3PXP";
-        let seed_handle = unsafe {
-            lsec_wasm_totp_decode_base32(seed_b32.as_ptr(), seed_b32.len())
-        };
+        let seed_handle =
+            unsafe { lsec_wasm_totp_decode_base32(seed_b32.as_ptr(), seed_b32.len()) };
         assert!(!seed_handle.is_null());
 
         let seed_ptr = unsafe { lsec_wasm_buffer_data(seed_handle) };
