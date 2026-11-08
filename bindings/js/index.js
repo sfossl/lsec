@@ -85,7 +85,10 @@ export async function init(wasmSource) {
       const dirname = path.dirname(filename);
       const releasePath = path.resolve(dirname, '../../target/wasm32-unknown-unknown/release/lsec_wasm.wasm');
       const debugPath = path.resolve(dirname, '../../target/wasm32-unknown-unknown/debug/lsec_wasm.wasm');
-      if (fs.existsSync(releasePath)) {
+      const localWasmPath = path.resolve(dirname, './lsec_wasm.wasm');
+      if (fs.existsSync(localWasmPath)) {
+        moduleBytes = fs.readFileSync(localWasmPath);
+      } else if (fs.existsSync(releasePath)) {
         moduleBytes = fs.readFileSync(releasePath);
       } else if (fs.existsSync(debugPath)) {
         moduleBytes = fs.readFileSync(debugPath);
