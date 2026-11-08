@@ -70,9 +70,19 @@ mod tests {
     fn test_verify_exact_step() {
         let config = SecurityConfig::default();
         let time = 1234567890u64;
-        let valid_code = generate_code(RFC_SECRET, time, config.totp_step_seconds, config.totp_digits, TotpAlgorithm::Sha1).expect("gen");
+        let valid_code = generate_code(
+            RFC_SECRET,
+            time,
+            config.totp_step_seconds,
+            config.totp_digits,
+            TotpAlgorithm::Sha1,
+        )
+        .expect("gen");
 
-        assert!(verify_code_at(RFC_SECRET, &valid_code, time, &config, TotpAlgorithm::Sha1).expect("verify ok"));
+        assert!(
+            verify_code_at(RFC_SECRET, &valid_code, time, &config, TotpAlgorithm::Sha1)
+                .expect("verify ok")
+        );
     }
 
     #[test]
@@ -80,9 +90,19 @@ mod tests {
         let config = SecurityConfig::builder().totp_drift_steps(1).build();
         let time = 1234567890u64;
         let past_time = time - 30;
-        let past_code = generate_code(RFC_SECRET, past_time, config.totp_step_seconds, config.totp_digits, TotpAlgorithm::Sha1).expect("gen");
+        let past_code = generate_code(
+            RFC_SECRET,
+            past_time,
+            config.totp_step_seconds,
+            config.totp_digits,
+            TotpAlgorithm::Sha1,
+        )
+        .expect("gen");
 
-        assert!(verify_code_at(RFC_SECRET, &past_code, time, &config, TotpAlgorithm::Sha1).expect("verify ok"));
+        assert!(
+            verify_code_at(RFC_SECRET, &past_code, time, &config, TotpAlgorithm::Sha1)
+                .expect("verify ok")
+        );
     }
 
     #[test]
@@ -90,9 +110,23 @@ mod tests {
         let config = SecurityConfig::builder().totp_drift_steps(1).build();
         let time = 1234567890u64;
         let far_past_time = time - 60;
-        let far_past_code = generate_code(RFC_SECRET, far_past_time, config.totp_step_seconds, config.totp_digits, TotpAlgorithm::Sha1).expect("gen");
+        let far_past_code = generate_code(
+            RFC_SECRET,
+            far_past_time,
+            config.totp_step_seconds,
+            config.totp_digits,
+            TotpAlgorithm::Sha1,
+        )
+        .expect("gen");
 
-        assert!(!verify_code_at(RFC_SECRET, &far_past_code, time, &config, TotpAlgorithm::Sha1).expect("verify ok"));
+        assert!(!verify_code_at(
+            RFC_SECRET,
+            &far_past_code,
+            time,
+            &config,
+            TotpAlgorithm::Sha1
+        )
+        .expect("verify ok"));
     }
 
     #[test]
@@ -100,7 +134,9 @@ mod tests {
         let config = SecurityConfig::default();
         let time = 1234567890u64;
 
-        assert!(!verify_code_at(RFC_SECRET, "000000", time, &config, TotpAlgorithm::Sha1).expect("verify ok"));
+        assert!(
+            !verify_code_at(RFC_SECRET, "000000", time, &config, TotpAlgorithm::Sha1)
+                .expect("verify ok")
+        );
     }
 }
-
