@@ -23,9 +23,7 @@ pub fn seal(
         CipherSuite::ChaCha20Poly1305 => {
             encrypt_chacha20(&derived_key, plaintext, &serialized_header)?
         }
-        CipherSuite::Aes256Gcm => {
-            encrypt_aes256_gcm(&derived_key, plaintext, &serialized_header)?
-        }
+        CipherSuite::Aes256Gcm => encrypt_aes256_gcm(&derived_key, plaintext, &serialized_header)?,
     };
 
     let mut vault_package = Vec::with_capacity(HEADER_SIZE + ciphertext.len());
@@ -59,9 +57,7 @@ pub fn unseal(vault_bytes: &[u8], passphrase: &[u8]) -> Result<ProtectedBuffer, 
         CipherSuite::ChaCha20Poly1305 => {
             decrypt_chacha20(&derived_key, ciphertext, serialized_header)?
         }
-        CipherSuite::Aes256Gcm => {
-            decrypt_aes256_gcm(&derived_key, ciphertext, serialized_header)?
-        }
+        CipherSuite::Aes256Gcm => decrypt_aes256_gcm(&derived_key, ciphertext, serialized_header)?,
     };
 
     Ok(plaintext)
@@ -107,7 +103,13 @@ mod tests {
     fn test_wrong_passphrase_fails() {
         let config = test_fast_config();
         let secret = b"confidential-data";
-        let sealed = seal(secret, b"correct-password", &config, CipherSuite::ChaCha20Poly1305).expect("ok");
+        let sealed = seal(
+            secret,
+            b"correct-password",
+            &config,
+            CipherSuite::ChaCha20Poly1305,
+        )
+        .expect("ok");
 
         let res = unseal(&sealed, b"wrong-password");
         assert!(matches!(res, Err(VaultError::Crypto(_))));
@@ -117,7 +119,13 @@ mod tests {
     fn test_header_tamper_fails() {
         let config = test_fast_config();
         let secret = b"confidential-data";
-        let mut sealed = seal(secret, b"correct-password", &config, CipherSuite::ChaCha20Poly1305).expect("ok");
+        let mut sealed = seal(
+            secret,
+            b"correct-password",
+            &config,
+            CipherSuite::ChaCha20Poly1305,
+        )
+        .expect("ok");
 
         // tamper with salt in header
         sealed[8] ^= 0x01;
@@ -130,7 +138,13 @@ mod tests {
     fn test_ciphertext_tamper_fails() {
         let config = test_fast_config();
         let secret = b"confidential-data";
-        let mut sealed = seal(secret, b"correct-password", &config, CipherSuite::ChaCha20Poly1305).expect("ok");
+        let mut sealed = seal(
+            secret,
+            b"correct-password",
+            &config,
+            CipherSuite::ChaCha20Poly1305,
+        )
+        .expect("ok");
 
         let last_idx = sealed.len() - 1;
         sealed[last_idx] ^= 0x01;
@@ -139,4 +153,3 @@ mod tests {
         assert!(matches!(res, Err(VaultError::Crypto(_))));
     }
 }
-
