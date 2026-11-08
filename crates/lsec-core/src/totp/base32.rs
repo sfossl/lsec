@@ -78,20 +78,31 @@ mod tests {
     #[test]
     fn test_decode_empty_fails() {
         assert!(matches!(decode_secret(""), Err(TotpError::EmptySecret)));
-        assert!(matches!(decode_secret("   --- ==="), Err(TotpError::EmptySecret)));
+        assert!(matches!(
+            decode_secret("   --- ==="),
+            Err(TotpError::EmptySecret)
+        ));
     }
 
     #[test]
     fn test_decode_invalid_chars_fails() {
         // '0', '1', '8', '9' are not in standard base32
-        assert!(matches!(decode_secret("JBSWY3DPE8"), Err(TotpError::InvalidBase32)));
-        assert!(matches!(decode_secret("JBSWY3DPE0"), Err(TotpError::InvalidBase32)));
+        assert!(matches!(
+            decode_secret("JBSWY3DPE8"),
+            Err(TotpError::InvalidBase32)
+        ));
+        assert!(matches!(
+            decode_secret("JBSWY3DPE0"),
+            Err(TotpError::InvalidBase32)
+        ));
     }
 
     #[test]
     fn test_decode_nonzero_residual_bits_fails() {
         // 'JBSWY3DPEE======' has valid zero padding; changing 'E' to 'F' introduces non-zero residual bits
-        assert!(matches!(decode_secret("JBSWY3DPEF======"), Err(TotpError::InvalidBase32)));
+        assert!(matches!(
+            decode_secret("JBSWY3DPEF======"),
+            Err(TotpError::InvalidBase32)
+        ));
     }
 }
-
