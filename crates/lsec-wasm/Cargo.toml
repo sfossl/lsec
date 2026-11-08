@@ -11,6 +11,6 @@ description = "WebAssembly interface for lsec in offline PWAs and browser client
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-lsec-core = { path = "../lsec-core" }
+lsec-core = { path = "../lsec-core", version = "0.1.0" }
 zeroize = { workspace = true }
 
