@@ -5,9 +5,9 @@ use std::path::Path;
 use super::envelope::{seal, unseal};
 use super::error::VaultError;
 use super::format::CipherSuite;
+use crate::config::SecurityConfig;
 #[cfg(unix)]
 use crate::config::{POSIX_DIR_PERMISSIONS, POSIX_FILE_PERMISSIONS};
-use crate::config::SecurityConfig;
 use crate::crypto::generate_salt;
 use crate::memguard::ProtectedBuffer;
 
@@ -152,17 +152,38 @@ mod tests {
 
     #[test]
     fn test_atomic_overwrite_preserves_validity() {
-        let temp_dir = std::env::temp_dir().join(format!("lsec_test_atomic_{}", std::process::id()));
+        let temp_dir =
+            std::env::temp_dir().join(format!("lsec_test_atomic_{}", std::process::id()));
         let vault_file = temp_dir.join("atomic_vault.db");
         let pass = b"passphrase-v1";
         let config = test_fast_config();
 
-        seal_to_file(&vault_file, b"version-1", pass, &config, CipherSuite::ChaCha20Poly1305).expect("v1 ok");
-        assert_eq!(&unseal_from_file(&vault_file, pass).unwrap()[..], b"version-1");
+        seal_to_file(
+            &vault_file,
+            b"version-1",
+            pass,
+            &config,
+            CipherSuite::ChaCha20Poly1305,
+        )
+        .expect("v1 ok");
+        assert_eq!(
+            &unseal_from_file(&vault_file, pass).unwrap()[..],
+            b"version-1"
+        );
 
         // atomic update
-        seal_to_file(&vault_file, b"version-2", pass, &config, CipherSuite::ChaCha20Poly1305).expect("v2 ok");
-        assert_eq!(&unseal_from_file(&vault_file, pass).unwrap()[..], b"version-2");
+        seal_to_file(
+            &vault_file,
+            b"version-2",
+            pass,
+            &config,
+            CipherSuite::ChaCha20Poly1305,
+        )
+        .expect("v2 ok");
+        assert_eq!(
+            &unseal_from_file(&vault_file, pass).unwrap()[..],
+            b"version-2"
+        );
 
         let _ = fs::remove_dir_all(&temp_dir);
     }
@@ -177,7 +198,14 @@ mod tests {
         let pass = b"passphrase";
         let config = test_fast_config();
 
-        seal_to_file(&vault_file, b"permission-test", pass, &config, CipherSuite::ChaCha20Poly1305).expect("ok");
+        seal_to_file(
+            &vault_file,
+            b"permission-test",
+            pass,
+            &config,
+            CipherSuite::ChaCha20Poly1305,
+        )
+        .expect("ok");
 
         let metadata = fs::metadata(&vault_file).expect("metadata ok");
         let mode = metadata.permissions().mode() & 0o777;
@@ -208,12 +236,20 @@ mod tests {
 
     #[test]
     fn test_unseal_corrupted_disk_payload_fails() {
-        let temp_dir = std::env::temp_dir().join(format!("lsec_test_corrupt_{}", std::process::id()));
+        let temp_dir =
+            std::env::temp_dir().join(format!("lsec_test_corrupt_{}", std::process::id()));
         let vault_file = temp_dir.join("corrupted.db");
         let pass = b"passphrase";
         let config = test_fast_config();
 
-        seal_to_file(&vault_file, b"valid-payload", pass, &config, CipherSuite::ChaCha20Poly1305).expect("ok");
+        seal_to_file(
+            &vault_file,
+            b"valid-payload",
+            pass,
+            &config,
+            CipherSuite::ChaCha20Poly1305,
+        )
+        .expect("ok");
 
         let mut data = fs::read(&vault_file).expect("read ok");
         let last_idx = data.len() - 1;
@@ -228,7 +264,8 @@ mod tests {
 
     #[test]
     fn test_subsequent_write_cleans_and_succeeds() {
-        let temp_dir = std::env::temp_dir().join(format!("lsec_test_abandoned_{}", std::process::id()));
+        let temp_dir =
+            std::env::temp_dir().join(format!("lsec_test_abandoned_{}", std::process::id()));
         let vault_file = temp_dir.join("clean.db");
         let pass = b"passphrase";
         let config = test_fast_config();
@@ -238,7 +275,14 @@ mod tests {
         let abandoned_temp = temp_dir.join(".clean.db.tmp.deadbeef");
         fs::write(&abandoned_temp, b"stale-data").expect("write stale ok");
 
-        seal_to_file(&vault_file, b"fresh-data", pass, &config, CipherSuite::ChaCha20Poly1305).expect("seal ok");
+        seal_to_file(
+            &vault_file,
+            b"fresh-data",
+            pass,
+            &config,
+            CipherSuite::ChaCha20Poly1305,
+        )
+        .expect("seal ok");
         let unsealed = unseal_from_file(&vault_file, pass).expect("unseal ok");
         assert_eq!(&unsealed[..], b"fresh-data");
 
