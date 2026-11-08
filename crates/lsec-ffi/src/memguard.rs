@@ -124,4 +124,3 @@ pub unsafe extern "C" fn lsec_buffer_free(buf: *mut LsecProtectedBuffer) {
         }
     });
 }
-
