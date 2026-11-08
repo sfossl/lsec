@@ -165,8 +165,27 @@ mod tests {
 
     #[test]
     fn test_null_pointer_safety() {
-        assert_eq!(unsafe { lsec_buffer_new(core::ptr::null(), 10, core::ptr::null_mut()) }, LSEC_ERR_NULL_POINTER);
-        assert_eq!(unsafe { lsec_vault_seal(core::ptr::null(), 0, core::ptr::null(), 0, 1, core::ptr::null_mut(), core::ptr::null_mut()) }, LSEC_ERR_NULL_POINTER);
-        assert_eq!(unsafe { lsec_totp_decode_base32(core::ptr::null(), core::ptr::null_mut()) }, LSEC_ERR_NULL_POINTER);
+        assert_eq!(
+            unsafe { lsec_buffer_new(core::ptr::null(), 10, core::ptr::null_mut()) },
+            LSEC_ERR_NULL_POINTER
+        );
+        assert_eq!(
+            unsafe {
+                lsec_vault_seal(
+                    core::ptr::null(),
+                    0,
+                    core::ptr::null(),
+                    0,
+                    1,
+                    core::ptr::null_mut(),
+                    core::ptr::null_mut(),
+                )
+            },
+            LSEC_ERR_NULL_POINTER
+        );
+        assert_eq!(
+            unsafe { lsec_totp_decode_base32(core::ptr::null(), core::ptr::null_mut()) },
+            LSEC_ERR_NULL_POINTER
+        );
     }
 }
