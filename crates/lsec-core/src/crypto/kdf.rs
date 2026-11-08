@@ -1,7 +1,7 @@
 use argon2::{Algorithm, Argon2, Params, Version};
 
 use super::error::CryptoError;
-use crate::config::{DEFAULT_KEY_LEN_BYTES, DEFAULT_SALT_LEN_BYTES, SecurityConfig};
+use crate::config::{SecurityConfig, DEFAULT_KEY_LEN_BYTES, DEFAULT_SALT_LEN_BYTES};
 use crate::memguard::ProtectedBuffer;
 
 pub fn generate_salt() -> Result<[u8; DEFAULT_SALT_LEN_BYTES], CryptoError> {
@@ -82,4 +82,3 @@ mod tests {
         assert_ne!(&key1[..], &key2[..]);
     }
 }
-
