@@ -4,7 +4,7 @@ use sha2::{Sha256, Sha512};
 use zeroize::Zeroize;
 
 use super::error::TotpError;
-use crate::config::{MAX_TOTP_DIGITS, MIN_TOTP_DIGITS, SecurityConfig};
+use crate::config::{SecurityConfig, MAX_TOTP_DIGITS, MIN_TOTP_DIGITS};
 
 type HmacSha1 = Hmac<Sha1>;
 type HmacSha256 = Hmac<Sha256>;
@@ -31,22 +31,29 @@ fn modulo_for_digits(digits: u32) -> Result<u32, TotpError> {
     }
 }
 
-fn compute_hmac(algorithm: TotpAlgorithm, secret: &[u8], counter: u64) -> Result<Vec<u8>, TotpError> {
+fn compute_hmac(
+    algorithm: TotpAlgorithm,
+    secret: &[u8],
+    counter: u64,
+) -> Result<Vec<u8>, TotpError> {
     let counter_bytes = counter.to_be_bytes();
 
     let digest = match algorithm {
         TotpAlgorithm::Sha1 => {
-            let mut mac = HmacSha1::new_from_slice(secret).map_err(|_| TotpError::InvalidKeyLength)?;
+            let mut mac =
+                HmacSha1::new_from_slice(secret).map_err(|_| TotpError::InvalidKeyLength)?;
             mac.update(&counter_bytes);
             mac.finalize().into_bytes().to_vec()
         }
         TotpAlgorithm::Sha256 => {
-            let mut mac = HmacSha256::new_from_slice(secret).map_err(|_| TotpError::InvalidKeyLength)?;
+            let mut mac =
+                HmacSha256::new_from_slice(secret).map_err(|_| TotpError::InvalidKeyLength)?;
             mac.update(&counter_bytes);
             mac.finalize().into_bytes().to_vec()
         }
         TotpAlgorithm::Sha512 => {
-            let mut mac = HmacSha512::new_from_slice(secret).map_err(|_| TotpError::InvalidKeyLength)?;
+            let mut mac =
+                HmacSha512::new_from_slice(secret).map_err(|_| TotpError::InvalidKeyLength)?;
             mac.update(&counter_bytes);
             mac.finalize().into_bytes().to_vec()
         }
@@ -120,7 +127,8 @@ mod tests {
 
     const RFC_SEED_SHA1: &[u8] = b"12345678901234567890";
     const RFC_SEED_SHA256: &[u8] = b"12345678901234567890123456789012";
-    const RFC_SEED_SHA512: &[u8] = b"1234567890123456789012345678901234567890123456789012345678901234";
+    const RFC_SEED_SHA512: &[u8] =
+        b"1234567890123456789012345678901234567890123456789012345678901234";
 
     #[test]
     fn test_rfc6238_sha1_8digits() {
@@ -133,7 +141,8 @@ mod tests {
         ];
 
         for (time, expected) in vectors {
-            let code = generate_code(RFC_SEED_SHA1, time, 30, 8, TotpAlgorithm::Sha1).expect("gen ok");
+            let code =
+                generate_code(RFC_SEED_SHA1, time, 30, 8, TotpAlgorithm::Sha1).expect("gen ok");
             assert_eq!(code, expected, "sha1 failed at t={}", time);
         }
     }
@@ -149,7 +158,8 @@ mod tests {
         ];
 
         for (time, expected) in vectors {
-            let code = generate_code(RFC_SEED_SHA256, time, 30, 8, TotpAlgorithm::Sha256).expect("gen ok");
+            let code =
+                generate_code(RFC_SEED_SHA256, time, 30, 8, TotpAlgorithm::Sha256).expect("gen ok");
             assert_eq!(code, expected, "sha256 failed at t={}", time);
         }
     }
@@ -165,7 +175,8 @@ mod tests {
         ];
 
         for (time, expected) in vectors {
-            let code = generate_code(RFC_SEED_SHA512, time, 30, 8, TotpAlgorithm::Sha512).expect("gen ok");
+            let code =
+                generate_code(RFC_SEED_SHA512, time, 30, 8, TotpAlgorithm::Sha512).expect("gen ok");
             assert_eq!(code, expected, "sha512 failed at t={}", time);
         }
     }
