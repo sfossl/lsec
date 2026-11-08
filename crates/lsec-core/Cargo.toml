@@ -5,7 +5,10 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Core defense-in-depth local security engine for memory isolation, cryptography, and secrets management."
+description = "Core defense-in-depth local security engine for memory isolation, cryptography and secrets management."
+readme = "../../README.md"
+keywords = ["security", "cryptography", "vault", "totp", "memguard"]
+categories = ["cryptography", "authentication", "memory-management"]
 
 [dependencies]
 zeroize = { workspace = true }
