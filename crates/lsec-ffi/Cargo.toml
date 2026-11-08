@@ -11,5 +11,5 @@ description = "C-ABI foreign function interface and header exports for lsec."
 crate-type = ["cdylib", "staticlib", "rlib"]
 
 [dependencies]
-lsec-core = { path = "../lsec-core" }
+lsec-core = { path = "../lsec-core", version = "0.1.0" }
 
