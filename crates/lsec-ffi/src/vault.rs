@@ -5,9 +5,7 @@ use std::path::Path;
 use std::slice;
 
 use lsec_core::config::SecurityConfig;
-use lsec_core::vault::{
-    seal, seal_to_file, unseal, unseal_from_file, CipherSuite, VaultError,
-};
+use lsec_core::vault::{seal, seal_to_file, unseal, unseal_from_file, CipherSuite, VaultError};
 
 use crate::error::{
     LSEC_ERR_CRYPTO_FAILED, LSEC_ERR_INVALID_PARAM, LSEC_ERR_IO_FAILED, LSEC_ERR_NULL_POINTER,
@@ -25,9 +23,9 @@ fn parse_cipher_suite(cipher_id: u8) -> Result<CipherSuite, i32> {
 
 fn map_vault_error(err: VaultError) -> i32 {
     match err {
-        VaultError::InvalidMagicHeader
-        | VaultError::HeaderTooShort
-        | VaultError::CorruptedData => LSEC_ERR_VAULT_CORRUPT,
+        VaultError::InvalidMagicHeader | VaultError::HeaderTooShort | VaultError::CorruptedData => {
+            LSEC_ERR_VAULT_CORRUPT
+        }
         VaultError::UnsupportedCipherSuite(_)
         | VaultError::UnsupportedKdf(_)
         | VaultError::InvalidKdfParameters => LSEC_ERR_INVALID_PARAM,
@@ -235,7 +233,9 @@ pub unsafe extern "C" fn lsec_vault_bytes_free(bytes: *mut u8, len: usize) {
     let _ = catch_unwind(|| {
         if !bytes.is_null() && len > 0 {
             unsafe {
-                drop(Box::from_raw(core::ptr::slice_from_raw_parts_mut(bytes, len)));
+                drop(Box::from_raw(core::ptr::slice_from_raw_parts_mut(
+                    bytes, len,
+                )));
             }
         }
     });
