@@ -22,7 +22,9 @@ impl fmt::Display for VaultError {
             Self::HeaderTooShort => write!(f, "vault header is too short"),
             Self::UnsupportedCipherSuite(id) => write!(f, "unsupported cipher suite id: {}", id),
             Self::UnsupportedKdf(id) => write!(f, "unsupported kdf algorithm id: {}", id),
-            Self::InvalidKdfParameters => write!(f, "vault kdf parameters out of acceptable bounds"),
+            Self::InvalidKdfParameters => {
+                write!(f, "vault kdf parameters out of acceptable bounds")
+            }
             Self::CorruptedData => write!(f, "vault payload is corrupted or corrupted length"),
             Self::Crypto(err) => write!(f, "vault cryptographic failure: {}", err),
             Self::Io(err) => write!(f, "vault filesystem io failure: {}", err),
@@ -43,4 +45,3 @@ impl From<IoError> for VaultError {
         Self::Io(err)
     }
 }
-
