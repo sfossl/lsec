@@ -1,4 +1,11 @@
+[Docs Overview](../README.md#documentation) / API Reference
+
 # API Reference
+
+Complete reference of exported modules, constants, structs, C-ABI symbols and client SDKs.
+
+### Documentation Guides
+[Getting Started](getting-started.md) | [Memory Guard](memguard.md) | [Vault](vault.md) | [TOTP](totp.md) | [C Integration](c-integration.md) | [Go Integration](go-integration.md) | [WebAssembly](wasm-integration.md) | [API Reference](api-reference.md)
 
 ## Module: `lsec-core::config`
 
@@ -182,3 +189,62 @@ C99 header `include/lsec.h` function declarations and error codes.
 | `lsec_totp_decode_base32` | `int32_t lsec_totp_decode_base32(const char *base32_str, lsec_protected_buffer_t **out_buf)` | Decodes Base32 secret into protected buffer. |
 | `lsec_totp_generate` | `int32_t lsec_totp_generate(const uint8_t *secret, size_t secret_len, uint64_t timestamp, uint64_t step_seconds, uint32_t digits, uint8_t algorithm_id, char *out_code, size_t out_code_capacity)` | Generates TOTP passcode for specified timestamp. |
 | `lsec_totp_verify` | `int32_t lsec_totp_verify(const uint8_t *secret, size_t secret_len, const char *candidate_code, uint64_t timestamp, uint64_t step_seconds, uint32_t digits, uint8_t drift_steps, uint8_t algorithm_id, int32_t *out_is_valid)` | Verifies candidate passcode with drift tolerance. |
+
+---
+
+## Module: `bindings/go`
+
+Idiomatic Go package using C-ABI bindings.
+
+### Constants & Types
+
+- `CipherSuite`: `CipherChaCha20Poly1305` (`1`), `CipherAES256GCM` (`2`)
+- `TotpAlgorithm`: `TotpSha1` (`0`), `TotpSha256` (`1`), `TotpSha512` (`2`)
+- `Buffer`: Opaque pointer wrapper with `runtime.SetFinalizer` auto-reclaim and `runtime.KeepAlive` safety.
+
+### Functions
+
+| Function / Method | Signature | Description |
+| :--- | :--- | :--- |
+| `Version` | `func Version() (major, minor, patch uint32)` | Returns library version numbers. |
+| `NewBuffer` | `func NewBuffer(data []byte) (*Buffer, error)` | Allocates locked buffer with initial data. |
+| `NewZeroedBuffer` | `func NewZeroedBuffer(length int) (*Buffer, error)` | Allocates zero-filled locked buffer. |
+| `(*Buffer).Len` | `func (b *Buffer) Len() int` | Returns buffer byte count. |
+| `(*Buffer).Bytes` | `func (b *Buffer) Bytes() []byte` | Returns copy of protected memory. |
+| `(*Buffer).Wipe` | `func (b *Buffer) Wipe() error` | Zeroizes buffer contents immediately. |
+| `(*Buffer).Free` | `func (b *Buffer) Free()` | Unlocks and frees memory, unregistering finalizer. |
+| `Seal` | `func Seal(plaintext, passphrase []byte, cipher CipherSuite) ([]byte, error)` | Encrypts payload into binary envelope bytes. |
+| `Unseal` | `func Unseal(vaultBytes, passphrase []byte) (*Buffer, error)` | Decrypts binary envelope into a protected buffer. |
+| `SealToFile` | `func SealToFile(path string, plaintext, passphrase []byte, cipher CipherSuite) error` | Atomically writes vault container with `0600` permissions. |
+| `UnsealFromFile` | `func UnsealFromFile(path string, passphrase []byte) (*Buffer, error)` | Reads and decrypts file into a protected buffer. |
+| `TOTPDecodeBase32` | `func TOTPDecodeBase32(base32Secret string) (*Buffer, error)` | Decodes Base32 secret string into protected buffer. |
+| `TOTPGenerateCode` | `func TOTPGenerateCode(secret []byte, timestamp, stepSeconds uint64, digits uint32, algo TotpAlgorithm) (string, error)` | Generates TOTP code for timestamp. |
+| `TOTPVerifyCode` | `func TOTPVerifyCode(secret []byte, candidate string, timestamp, stepSeconds uint64, digits uint32, driftSteps uint8, algo TotpAlgorithm) (bool, error)` | Verifies passcode across drift window. |
+
+---
+
+## Module: `bindings/js`
+
+Zero-dependency JavaScript and TypeScript SDK for Node.js, browsers and offline web apps.
+
+### Lifecycle & Introspection
+
+| Function | Signature | Description |
+| :--- | :--- | :--- |
+| `init` | `async function init(wasmSource?: BufferSource \| Response): Promise<void>` | Compiles and initializes WebAssembly runtime module. |
+| `version` | `function version(): { major: number, minor: number, patch: number }` | Returns loaded Wasm binary version numbers. |
+
+### Classes & Methods
+
+| Class / Method | Signature | Description |
+| :--- | :--- | :--- |
+| `new Buffer` | `constructor(data: Uint8Array \| number)` | Allocates locked buffer with initial data or zero length. |
+| `Buffer.prototype.length` | `get length(): number` | Returns byte length of allocated buffer. |
+| `Buffer.prototype.bytes` | `get bytes(): Uint8Array` | Returns copy of buffer contents. |
+| `Buffer.prototype.wipe` | `wipe(): void` | Overwrites buffer memory with zeros. |
+| `Buffer.prototype.free` | `free(): void` | Deallocates Wasm linear memory buffer. |
+| `Vault.seal` | `static seal(plaintext: Uint8Array, passphrase: Uint8Array, cipher?: number): Uint8Array` | Encrypts plaintext into binary vault envelope. |
+| `Vault.unseal` | `static unseal(vaultBytes: Uint8Array, passphrase: Uint8Array): Buffer` | Decrypts vault envelope into protected buffer. |
+| `TOTP.decodeBase32` | `static decodeBase32(base32Str: string): Buffer` | Decodes Base32 secret into protected buffer. |
+| `TOTP.generate` | `static generate(secret: Uint8Array, timestamp?: number, stepSeconds?: number, digits?: number, algorithm?: number): string` | Generates TOTP passcode string. |
+| `TOTP.verify` | `static verify(secret: Uint8Array, candidateCode: string, timestamp?: number, stepSeconds?: number, digits?: number, driftSteps?: number, algorithm?: number): boolean` | Verifies candidate passcode with drift tolerance. |
