@@ -1,4 +1,11 @@
-# Getting Started with lsec
+[Docs Overview](../README.md#documentation) / Getting Started
+
+# Getting Started
+
+`lsec` is a defense-in-depth local security engine providing page-locked memory, anti-dump guarantees, envelope vault encryption and replay-resistant TOTP verification.
+
+### Documentation Guides
+[Getting Started](getting-started.md) | [Memory Guard](memguard.md) | [Vault](vault.md) | [TOTP](totp.md) | [C Integration](c-integration.md) | [Go Integration](go-integration.md) | [WebAssembly](wasm-integration.md) | [API Reference](api-reference.md)
 
 ## Installation
 
@@ -8,7 +15,7 @@ Add `lsec-core` to `Cargo.toml`:
 
 ```toml
 [dependencies]
-lsec-core = { git = "https://github.com/sfossl/lsec", tag = "v0.1.0" }
+lsec-core = "0.1.0"
 ```
 
 ### Go Projects
@@ -19,14 +26,14 @@ Import the Go binding module:
 go get github.com/sfossl/lsec/bindings/go
 ```
 
-Build or link against `liblsec_ffi` shared library.
+Build or link against the `liblsec_ffi` shared library.
 
 ### JavaScript and WebAssembly Projects
 
-Import the package and initialize the wasm runtime:
+Import the package and initialize the Wasm runtime:
 
 ```javascript
-import { init, Buffer, Vault, TOTP } from './bindings/js/index.js';
+import { init, Buffer, Vault, TOTP } from '@sfossl/lsec';
 
 // initialize with platform entropy
 await init();
@@ -34,19 +41,19 @@ await init();
 
 ---
 
-## Quick Starts
+## Quickstart
 
 ### 1. Protecting Secrets in Memory
+
+Allocate page-aligned memory pinned to physical RAM:
 
 ```rust
 use lsec_core::memguard::ProtectedBuffer;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // allocate locked memory pinned to physical ram
-    let secret = ProtectedBuffer::new(b"sensitive-secret-bytes")?;
+    let secret = ProtectedBuffer::new(b"value")?;
 
-    // access payload immutably
-    assert_eq!(&secret[..], b"sensitive-secret-bytes");
+    assert_eq!(&secret[..], b"value");
 
     // memory is wiped and unlocked automatically on drop
     Ok(())
@@ -55,60 +62,56 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### 2. Encrypted Vault Containers
 
+Seal payloads using authenticated ChaCha20-Poly1305 and owner-only `0600` file permissions:
+
 ```rust
 use lsec_core::config::SecurityConfig;
 use lsec_core::vault::{seal_to_file, unseal_from_file, CipherSuite};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let path = "app_data.vault";
-    let data = b"confidential-offline-records";
-    let passphrase = b"user-strong-passphrase";
+    let data = b"data";
+    let passphrase = b"passphrase";
     let config = SecurityConfig::default();
 
-    // seal payload with authenticated chacha20-poly1305 and 0600 file mode
     seal_to_file(path, data, passphrase, &config, CipherSuite::ChaCha20Poly1305)?;
 
-    // decrypt directly into page-locked buffer
     let unsealed = unseal_from_file(path, passphrase)?;
     assert_eq!(&unsealed[..], data);
-
     Ok(())
 }
 ```
 
 ### 3. Time-Based Authentication (TOTP)
 
+Decode Base32 secrets and calculate passcodes in constant time:
+
 ```rust
 use lsec_core::config::SecurityConfig;
 use lsec_core::totp::{decode_secret, generate_current, verify_code_current, TotpAlgorithm};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // decode base32 secret into protected memory
     let seed_buffer = decode_secret("JBSWY3DPEHPK3PXP")?;
     let config = SecurityConfig::default();
 
-    // generate 6-digit code for current epoch window
     let code = generate_current(&seed_buffer, &config, TotpAlgorithm::Sha1)?;
-
-    // verify in constant-time with drift tolerance
     let is_valid = verify_code_current(&seed_buffer, &code, &config, TotpAlgorithm::Sha1)?;
     assert!(is_valid);
-
     Ok(())
 }
 ```
 
 ---
 
-## Centralized Configuration Override
+## Configuration
 
-All default cryptographic and operational limits can be customized using `SecurityConfigBuilder`:
+Security parameter limits can be customized using `SecurityConfigBuilder`:
 
 ```rust
 use lsec_core::config::SecurityConfig;
 
 let custom_config = SecurityConfig::builder()
-    .argon2_memory_kib(32 * 1024) // 32 MiB
+    .argon2_memory_kib(32 * 1024)
     .argon2_iterations(4)
     .argon2_parallelism(2)
     .totp_step_seconds(30)
@@ -116,3 +119,14 @@ let custom_config = SecurityConfig::builder()
     .totp_drift_steps(1)
     .build();
 ```
+
+---
+
+## Connected Topics
+
+| Context | Destination | Description |
+| :--- | :--- | :--- |
+| **Previous** | [Docs Overview](../README.md#documentation) | Root architecture and package matrix |
+| **Next** | [Memory Guard](memguard.md) | Page-locked memory and zeroization deep dive |
+| **API Reference** | [API Reference](api-reference.md) | Parameter limits, structs and C-ABI codes |
+| **Integrations** | [Go Integration](go-integration.md) | Using lsec from Go via CGo |
