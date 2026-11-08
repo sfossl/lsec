@@ -16,7 +16,7 @@ function toBytes(input) {
   if (input instanceof Buffer) {
     return input.bytes();
   }
-  throw new TypeError('lsec: expected string, Uint8Array, or lsec.Buffer');
+  throw new TypeError('lsec: expected string, Uint8Array or lsec.Buffer');
 }
 
 function copyToWasm(bytes) {
