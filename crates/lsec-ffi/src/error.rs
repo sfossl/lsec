@@ -9,4 +9,3 @@ pub const LSEC_ERR_VAULT_CORRUPT: i32 = -7;
 pub const LSEC_ERR_IO_FAILED: i32 = -8;
 pub const LSEC_ERR_TOTP_FAILED: i32 = -9;
 pub const LSEC_ERR_PANIC: i32 = -10;
-
