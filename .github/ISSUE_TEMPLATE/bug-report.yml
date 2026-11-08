@@ -1,0 +1,29 @@
+name: Bug report
+description: Report an issue or unexpected behavior
+labels: ["bug"]
+body:
+  - type: textarea
+    id: issue
+    attributes:
+      label: Issue
+      description: Describe what happened and what was expected.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Minimal code snippet or steps to reproduce.
+      render: rust
+    validations:
+      required: false
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Rust/Go/Node version and operating system.
+      placeholder: "rustc 1.75 linux/amd64"
+    validations:
+      required: false
