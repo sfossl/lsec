@@ -6,6 +6,7 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "C-ABI foreign function interface and header exports for lsec."
+readme = "README.md"
 
 [lib]
 crate-type = ["cdylib", "staticlib", "rlib"]
