@@ -15,7 +15,7 @@ Add `lsec-core` to `Cargo.toml`:
 
 ```toml
 [dependencies]
-lsec-core = "0.1.0"
+lsec-core = "0.2.0"
 ```
 
 ### Go Projects

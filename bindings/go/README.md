@@ -1,6 +1,6 @@
 ## Overview
 
-`bindings/go` provides an idiomatic Go package for the `lsec` defense-in-depth security engine, integrating native page-locked memory, local envelope vault encryption and TOTP verification via Cgo over the `lsec-ffi` shared library.
+`bindings/go` provides an idiomatic Go package for the `lsec` defense-in-depth security engine, integrating native page-locked memory, process dump suppression, multi-slot vault containers, local envelope encryption and TOTP verification via Cgo over the `lsec-ffi` shared library.
 
 ## Installation
 

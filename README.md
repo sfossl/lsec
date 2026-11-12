@@ -1,6 +1,6 @@
 ## Overview
 
-`lsec` is a defense-in-depth local security engine providing page-locked memory, anti-dump guarantees, envelope vault encryption and replay-resistant TOTP verification.
+`lsec` is a defense-in-depth local security engine providing page-locked memory, stack-allocated zeroizing arrays, process dump suppression, multi-slot envelope vault encryption and replay-resistant TOTP verification.
 
 Most software relies on default heap memory and unauthenticated local file storage. This leaves sensitive material vulnerable to memory swapping, crash dumps and unauthenticated file tampering. `lsec` provides low-level memory isolation and cryptographic storage primitives to protect credentials, keys and tokens throughout their local lifecycle across desktop, CLI and offline WebAssembly environments.
 
@@ -12,7 +12,7 @@ Add `lsec-core` to `Cargo.toml`:
 
 ```toml
 [dependencies]
-lsec-core = "0.1.0"
+lsec-core = "0.2.0"
 ```
 
 ### Go
@@ -51,11 +51,64 @@ npm install @sfossl/lsec
 
 | Capability | Module | Mechanism |
 | :--- | :--- | :--- |
-| Memory Guard | `memguard` | OS page alignment, RAM pinning (`mlock`/`VirtualLock`), volatile zeroization and `MADV_DONTDUMP`. |
-| Envelope Vault | `vault` | Argon2id key derivation, ChaCha20-Poly1305 / AES-256-GCM AEAD, CRC32 header and atomic file replace. |
+| Memory Guard | `memguard` | OS page alignment, RAM pinning (`mlock`/`VirtualLock`), `ProtectedArray<N>` stack zeroization and `MADV_DONTDUMP`. |
+| Multi-Slot Vault | `vault` | LUKS-style 4-slot container separating DEK from KEKs, sub-millisecond fast updates and multi-credential unlock. |
+| Envelope Vault | `vault` | Argon2id key derivation, ChaCha20-Poly1305 / AES-256-GCM AEAD, binary headers and atomic file replace. |
+| Process Hardening | `process` | OS-level anti-dump guarantees (`PR_SET_DUMPABLE`), error box suppression and anti-debugging controls. |
 | Two-Factor Auth | `totp` | RFC 6238 time-step calculation, RFC 4648 strict Base32 decoding and constant-time drift verification. |
 
 ### Usage Examples
+
+#### Stack-Allocated Memory Array (Rust)
+
+```rust
+use lsec_core::memguard::ProtectedArray;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 32-byte key buffer on stack with zero heap allocation
+    let mut key = ProtectedArray::<32>::new([0x42; 32]);
+    assert_eq!(key.len(), 32);
+
+    // drops with volatile memory wipe and compiler fence
+    Ok(())
+}
+```
+
+#### Multi-Slot Vault Storage (Rust)
+
+```rust
+use lsec_core::config::SecurityConfig;
+use lsec_core::vault::{CipherSuite, MultiSlotVault};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let config = SecurityConfig::default();
+    let payload = b"secret credentials";
+
+    // create multi-slot vault with master password
+    let mut vault = MultiSlotVault::create(
+        payload,
+        b"master-passphrase",
+        CipherSuite::ChaCha20Poly1305,
+        &config,
+    )?;
+
+    // add secondary recovery key without re-encrypting payload
+    MultiSlotVault::add_slot(
+        &mut vault,
+        b"master-passphrase",
+        b"recovery-key",
+        &config,
+        CipherSuite::Aes256Gcm,
+    )?;
+
+    // re-encrypts payload in <0.1ms with zero Argon2id recomputation
+    MultiSlotVault::update_payload(&mut vault, b"recovery-key", b"updated secret credentials")?;
+
+    let opened = MultiSlotVault::open(&vault, b"master-passphrase")?;
+    assert_eq!(&opened[..], b"updated secret credentials");
+    Ok(())
+}
+```
 
 #### Page-Locked Memory Buffer (Rust)
 
@@ -195,7 +248,7 @@ The `lsec` project consists of the following official components:
 
 ## Limitations
 
-- **Container Memory Limits**: In unprivileged Docker containers or restricted environments, the operating system `RLIMIT_MEMLOCK` defaults to 64 KB. Calling `ProtectedBuffer::new` will fail unless granted `CAP_IPC_LOCK` or a higher memory lock limit (`ulimit -l`).
+- **Container Memory Limits**: In unprivileged Docker containers or restricted environments, the operating system `RLIMIT_MEMLOCK` defaults to 64 KB. Calling `ProtectedBuffer::new` will fail unless granted `CAP_IPC_LOCK` or a higher memory lock limit (`ulimit -l`). For fixed-size keys and seeds, use `ProtectedArray<N>` instead to avoid OS page locking limits.
 - **Single-Buffer Size Ceiling**: Memory buffers are bounded by `DEFAULT_MAX_LOCKED_MEMORY_BYTES` (16 MiB) to avoid exhausting physical host RAM. Large multi-gigabyte streams must be processed in chunks.
 - **Not a Network Transport Protocol**: `lsec` does not manage TLS or transport encryption. Network data must be encrypted using standard network protocols.
 - **Root and Kernel Boundaries**: User-space memory locking cannot protect secrets against attackers with root privileges or kernel-level memory access (`CAP_SYS_PTRACE`).

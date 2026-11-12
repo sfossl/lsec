@@ -280,9 +280,9 @@ Idiomatic Go package using C-ABI bindings.
 | `MultiVaultRemoveSlot` | `func MultiVaultRemoveSlot(container []byte, existingPassphrase []byte, slotIndex int) error` | Zeroizes and deactivates specified slot index. |
 | `MultiVaultUpdatePayload` | `func MultiVaultUpdatePayload(container []byte, existingPassphrase, newPayload []byte) ([]byte, error)` | Fast payload update reusing existing DEK. |
 | `MultiVaultActiveSlots` | `func MultiVaultActiveSlots(container []byte) ([4]bool, error)` | Returns active status flags for all 4 slots. |
-| `TOTPDecodeBase32` | `func TOTPDecodeBase32(base32Secret string) (*Buffer, error)` | Decodes Base32 secret string into protected buffer. |
-| `TOTPGenerateCode` | `func TOTPGenerateCode(secret []byte, timestamp, stepSeconds uint64, digits uint32, algo TotpAlgorithm) (string, error)` | Generates TOTP code for timestamp. |
-| `TOTPVerifyCode` | `func TOTPVerifyCode(secret []byte, candidate string, timestamp, stepSeconds uint64, digits uint32, driftSteps uint8, algo TotpAlgorithm) (bool, error)` | Verifies passcode across drift window. |
+| `DecodeBase32` | `func DecodeBase32(base32Secret string) (*Buffer, error)` | Decodes Base32 secret string into protected buffer. |
+| `GenerateTOTP` | `func GenerateTOTP(secret []byte, timestamp, stepSeconds uint64, digits uint32, algo TotpAlgorithm) (string, error)` | Generates TOTP code for timestamp. |
+| `VerifyTOTP` | `func VerifyTOTP(secret []byte, code string, timestamp, stepSeconds uint64, digits uint32, driftSteps uint8, algo TotpAlgorithm) (bool, error)` | Verifies passcode across drift window. |
 
 ---
 
@@ -303,7 +303,7 @@ Zero-dependency JavaScript and TypeScript SDK for Node.js, browsers and offline 
 | :--- | :--- | :--- |
 | `new Buffer` | `constructor(data: Uint8Array \| number)` | Allocates locked buffer with initial data or zero length. |
 | `Buffer.prototype.length` | `get length(): number` | Returns byte length of allocated buffer. |
-| `Buffer.prototype.bytes` | `get bytes(): Uint8Array` | Returns copy of buffer contents. |
+| `Buffer.prototype.bytes` | `bytes(): Uint8Array` | Returns copy of buffer contents. |
 | `Buffer.prototype.wipe` | `wipe(): void` | Overwrites buffer memory with zeros. |
 | `Buffer.prototype.free` | `free(): void` | Deallocates Wasm linear memory buffer. |
 | `Vault.seal` | `static seal(plaintext: Uint8Array, passphrase: Uint8Array, cipher?: number): Uint8Array` | Encrypts plaintext into binary vault envelope. |
@@ -315,5 +315,5 @@ Zero-dependency JavaScript and TypeScript SDK for Node.js, browsers and offline 
 | `MultiSlotVault.updatePayload` | `static updatePayload(container: BinarySource, existingPassphrase: BinarySource, newPayload: BinarySource): Uint8Array` | Fast payload update reusing existing DEK. |
 | `MultiSlotVault.activeSlots` | `static activeSlots(container: BinarySource): [boolean, boolean, boolean, boolean]` | Returns active flags for all 4 slots. |
 | `TOTP.decodeBase32` | `static decodeBase32(base32Str: string): Buffer` | Decodes Base32 secret into protected buffer. |
-| `TOTP.generate` | `static generate(secret: Uint8Array, timestamp?: number, stepSeconds?: number, digits?: number, algorithm?: number): string` | Generates TOTP passcode string. |
-| `TOTP.verify` | `static verify(secret: Uint8Array, candidateCode: string, timestamp?: number, stepSeconds?: number, digits?: number, driftSteps?: number, algorithm?: number): boolean` | Verifies candidate passcode with drift tolerance. |
+| `TOTP.generate` | `static generate(secret: BinarySource, options?: TOTPGenerateOptions): string` | Generates TOTP passcode string. |
+| `TOTP.verify` | `static verify(secret: BinarySource, candidateCode: string, options?: TOTPVerifyOptions): boolean` | Verifies candidate passcode with drift tolerance. |
