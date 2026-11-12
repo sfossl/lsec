@@ -8,7 +8,7 @@ use std::panic::catch_unwind;
 use lsec_core::config::SecurityConfig;
 use lsec_core::memguard::ProtectedBuffer;
 use lsec_core::totp::{decode_secret, generate_code, verify_code_at, TotpAlgorithm};
-use lsec_core::vault::{seal, unseal, CipherSuite};
+use lsec_core::vault::{seal, unseal, CipherSuite, MultiSlotVault};
 use zeroize::Zeroize;
 
 pub struct LsecWasmBuffer(pub ProtectedBuffer);
@@ -25,7 +25,7 @@ pub extern "C" fn lsec_wasm_version_major() -> u32 {
 
 #[no_mangle]
 pub extern "C" fn lsec_wasm_version_minor() -> u32 {
-    1
+    2
 }
 
 #[no_mangle]
@@ -140,6 +140,26 @@ fn parse_cipher(cipher_id: u8) -> Option<CipherSuite> {
     }
 }
 
+unsafe fn to_slice<'a>(ptr: *const u8, len: usize) -> Option<&'a [u8]> {
+    if len == 0 {
+        Some(&[][..])
+    } else if ptr.is_null() {
+        None
+    } else {
+        Some(unsafe { slice::from_raw_parts(ptr, len) })
+    }
+}
+
+unsafe fn to_slice_mut<'a>(ptr: *mut u8, len: usize) -> Option<&'a mut [u8]> {
+    if len == 0 {
+        Some(&mut [][..])
+    } else if ptr.is_null() {
+        None
+    } else {
+        Some(unsafe { slice::from_raw_parts_mut(ptr, len) })
+    }
+}
+
 fn parse_algo(algo_id: u8) -> Option<TotpAlgorithm> {
     match algo_id {
         0 => Some(TotpAlgorithm::Sha1),
@@ -233,6 +253,210 @@ pub unsafe extern "C" fn lsec_wasm_vault_unseal(
     });
 
     result.unwrap_or(core::ptr::null_mut())
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn lsec_wasm_multi_vault_create(
+    plaintext: *const u8,
+    plaintext_len: usize,
+    passphrase: *const u8,
+    passphrase_len: usize,
+    cipher_id: u8,
+    out_len: *mut usize,
+) -> *mut u8 {
+    let result = catch_unwind(|| {
+        if out_len.is_null() {
+            return core::ptr::null_mut();
+        }
+
+        let plain_slice = match unsafe { to_slice(plaintext, plaintext_len) } {
+            Some(s) => s,
+            None => return core::ptr::null_mut(),
+        };
+        let pass_slice = match unsafe { to_slice(passphrase, passphrase_len) } {
+            Some(s) => s,
+            None => return core::ptr::null_mut(),
+        };
+
+        let cipher = match parse_cipher(cipher_id) {
+            Some(c) => c,
+            None => return core::ptr::null_mut(),
+        };
+
+        match MultiSlotVault::create(plain_slice, pass_slice, cipher, &SecurityConfig::default()) {
+            Ok(sealed) => {
+                let len = sealed.len();
+                let mut boxed = sealed.into_boxed_slice();
+                let ptr = boxed.as_mut_ptr();
+                unsafe {
+                    *out_len = len;
+                }
+                let _ = Box::into_raw(boxed);
+                ptr
+            }
+            Err(_) => core::ptr::null_mut(),
+        }
+    });
+
+    result.unwrap_or(core::ptr::null_mut())
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn lsec_wasm_multi_vault_open(
+    container: *const u8,
+    container_len: usize,
+    passphrase: *const u8,
+    passphrase_len: usize,
+) -> *mut LsecWasmBuffer {
+    unsafe { lsec_wasm_vault_unseal(container, container_len, passphrase, passphrase_len) }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn lsec_wasm_multi_vault_add_slot(
+    container: *mut u8,
+    container_len: usize,
+    existing_passphrase: *const u8,
+    existing_passphrase_len: usize,
+    new_passphrase: *const u8,
+    new_passphrase_len: usize,
+    new_cipher_id: u8,
+) -> i32 {
+    let result = catch_unwind(|| {
+        let c_slice = match unsafe { to_slice_mut(container, container_len) } {
+            Some(s) => s,
+            None => return -1,
+        };
+        let exist_pass = match unsafe { to_slice(existing_passphrase, existing_passphrase_len) } {
+            Some(s) => s,
+            None => return -1,
+        };
+        let new_pass = match unsafe { to_slice(new_passphrase, new_passphrase_len) } {
+            Some(s) => s,
+            None => return -1,
+        };
+
+        let cipher = match parse_cipher(new_cipher_id) {
+            Some(c) => c,
+            None => return -1,
+        };
+
+        match MultiSlotVault::add_slot(
+            c_slice,
+            exist_pass,
+            new_pass,
+            &SecurityConfig::default(),
+            cipher,
+        ) {
+            Ok(slot_idx) => slot_idx as i32,
+            Err(_) => -1,
+        }
+    });
+
+    result.unwrap_or(-1)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn lsec_wasm_multi_vault_remove_slot(
+    container: *mut u8,
+    container_len: usize,
+    existing_passphrase: *const u8,
+    existing_passphrase_len: usize,
+    slot_index: usize,
+) -> i32 {
+    let result = catch_unwind(|| {
+        let c_slice = match unsafe { to_slice_mut(container, container_len) } {
+            Some(s) => s,
+            None => return -1,
+        };
+        let exist_pass = match unsafe { to_slice(existing_passphrase, existing_passphrase_len) } {
+            Some(s) => s,
+            None => return -1,
+        };
+
+        match MultiSlotVault::remove_slot(c_slice, exist_pass, slot_index) {
+            Ok(()) => 0,
+            Err(_) => -1,
+        }
+    });
+
+    result.unwrap_or(-1)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn lsec_wasm_multi_vault_update_payload(
+    container: *const u8,
+    container_len: usize,
+    existing_passphrase: *const u8,
+    existing_passphrase_len: usize,
+    new_payload: *const u8,
+    new_payload_len: usize,
+    out_len: *mut usize,
+) -> *mut u8 {
+    let result = catch_unwind(|| {
+        if out_len.is_null() {
+            return core::ptr::null_mut();
+        }
+
+        let c_slice = match unsafe { to_slice(container, container_len) } {
+            Some(s) => s,
+            None => return core::ptr::null_mut(),
+        };
+        let exist_pass = match unsafe { to_slice(existing_passphrase, existing_passphrase_len) } {
+            Some(s) => s,
+            None => return core::ptr::null_mut(),
+        };
+        let new_plain = match unsafe { to_slice(new_payload, new_payload_len) } {
+            Some(s) => s,
+            None => return core::ptr::null_mut(),
+        };
+
+        let mut updated = c_slice.to_vec();
+        match MultiSlotVault::update_payload(&mut updated, exist_pass, new_plain) {
+            Ok(()) => {
+                let len = updated.len();
+                let mut boxed = updated.into_boxed_slice();
+                let ptr = boxed.as_mut_ptr();
+                unsafe {
+                    *out_len = len;
+                }
+                let _ = Box::into_raw(boxed);
+                ptr
+            }
+            Err(_) => core::ptr::null_mut(),
+        }
+    });
+
+    result.unwrap_or(core::ptr::null_mut())
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn lsec_wasm_multi_vault_active_slots(
+    container: *const u8,
+    container_len: usize,
+    out_slots: *mut u8,
+) -> i32 {
+    let result = catch_unwind(|| {
+        if out_slots.is_null() {
+            return -1;
+        }
+
+        let c_slice = match unsafe { to_slice(container, container_len) } {
+            Some(s) => s,
+            None => return -1,
+        };
+        match MultiSlotVault::active_slots(c_slice) {
+            Ok(slots) => {
+                let out_slice = unsafe { slice::from_raw_parts_mut(out_slots, 4) };
+                for (i, active) in slots.iter().enumerate() {
+                    out_slice[i] = if *active { 1 } else { 0 };
+                }
+                0
+            }
+            Err(_) => -1,
+        }
+    });
+
+    result.unwrap_or(-1)
 }
 
 #[no_mangle]
@@ -371,7 +595,7 @@ mod tests {
     fn test_wasm_ready() {
         assert_eq!(lsec_wasm_is_ready(), 1);
         assert_eq!(lsec_wasm_version_major(), 0);
-        assert_eq!(lsec_wasm_version_minor(), 1);
+        assert_eq!(lsec_wasm_version_minor(), 2);
         assert_eq!(lsec_wasm_version_patch(), 0);
     }
 
@@ -485,5 +709,85 @@ mod tests {
         assert_eq!(valid, 1);
 
         unsafe { lsec_wasm_buffer_free(seed_handle) };
+    }
+
+    #[test]
+    fn test_wasm_multi_vault_flow() {
+        let payload = b"wasm multi-slot secure payload";
+        let pass0 = b"wasm-master-password";
+        let pass1 = b"wasm-recovery-password";
+
+        let mut out_len: usize = 0;
+        let vault_ptr = unsafe {
+            lsec_wasm_multi_vault_create(
+                payload.as_ptr(),
+                payload.len(),
+                pass0.as_ptr(),
+                pass0.len(),
+                1,
+                &mut out_len,
+            )
+        };
+        assert!(!vault_ptr.is_null());
+        assert!(out_len >= 367);
+
+        let mut active = [0u8; 4];
+        let status =
+            unsafe { lsec_wasm_multi_vault_active_slots(vault_ptr, out_len, active.as_mut_ptr()) };
+        assert_eq!(status, 0);
+        assert_eq!(active, [1, 0, 0, 0]);
+
+        let slot1 = unsafe {
+            lsec_wasm_multi_vault_add_slot(
+                vault_ptr,
+                out_len,
+                pass0.as_ptr(),
+                pass0.len(),
+                pass1.as_ptr(),
+                pass1.len(),
+                2,
+            )
+        };
+        assert_eq!(slot1, 1);
+
+        let handle =
+            unsafe { lsec_wasm_multi_vault_open(vault_ptr, out_len, pass1.as_ptr(), pass1.len()) };
+        assert!(!handle.is_null());
+        let data_ptr = unsafe { lsec_wasm_buffer_data(handle) };
+        let data_len = unsafe { lsec_wasm_buffer_len(handle) };
+        let slice = unsafe { slice::from_raw_parts(data_ptr, data_len) };
+        assert_eq!(slice, payload);
+        unsafe { lsec_wasm_buffer_free(handle) };
+
+        let updated_payload = b"wasm updated payload fast";
+        let mut updated_len: usize = 0;
+        let updated_ptr = unsafe {
+            lsec_wasm_multi_vault_update_payload(
+                vault_ptr,
+                out_len,
+                pass0.as_ptr(),
+                pass0.len(),
+                updated_payload.as_ptr(),
+                updated_payload.len(),
+                &mut updated_len,
+            )
+        };
+        assert!(!updated_ptr.is_null());
+
+        // unseal transparent check
+        let handle_updated = unsafe {
+            lsec_wasm_vault_unseal(updated_ptr, updated_len, pass1.as_ptr(), pass1.len())
+        };
+        assert!(!handle_updated.is_null());
+        let u_data_ptr = unsafe { lsec_wasm_buffer_data(handle_updated) };
+        let u_data_len = unsafe { lsec_wasm_buffer_len(handle_updated) };
+        let u_slice = unsafe { slice::from_raw_parts(u_data_ptr, u_data_len) };
+        assert_eq!(u_slice, updated_payload);
+
+        unsafe {
+            lsec_wasm_buffer_free(handle_updated);
+            lsec_wasm_vault_bytes_free(vault_ptr, out_len);
+            lsec_wasm_vault_bytes_free(updated_ptr, updated_len);
+        }
     }
 }
