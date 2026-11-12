@@ -108,11 +108,29 @@ Binary envelope container and atomic filesystem storage.
 | Function | Signature | Description |
 | :--- | :--- | :--- |
 | `seal` | `fn seal(plaintext: &[u8], passphrase: &[u8], config: &SecurityConfig, cipher: CipherSuite) -> Result<Vec<u8>, VaultError>` | Encrypts plaintext into a self-describing binary vault container. |
-| `unseal` | `fn unseal(vault_bytes: &[u8], passphrase: &[u8]) -> Result<ProtectedBuffer, VaultError>` | Authenticates header and decrypts container into locked memory. |
+| `unseal` | `fn unseal(vault_bytes: &[u8], passphrase: &[u8]) -> Result<ProtectedBuffer, VaultError>` | Authenticates header and decrypts single-envelope or multi-slot container into locked memory. |
 | `seal_to_file` | `fn seal_to_file<P: AsRef<Path>>(path: P, plaintext: &[u8], passphrase: &[u8], config: &SecurityConfig, cipher: CipherSuite) -> Result<(), VaultError>` | Atomically writes vault container to disk with `0600` permissions. |
 | `unseal_from_file` | `fn unseal_from_file<P: AsRef<Path>>(path: P, passphrase: &[u8]) -> Result<ProtectedBuffer, VaultError>` | Reads file from disk and decrypts container into locked memory. |
+| `MultiSlotVault::create` | `fn create(payload: &[u8], passphrase: &[u8], cipher: CipherSuite, config: &SecurityConfig) -> Result<Vec<u8>, VaultError>` | Generates a 256-bit DEK and creates a multi-slot container with slot 0. |
+| `MultiSlotVault::open` | `fn open(container: &[u8], passphrase: &[u8]) -> Result<ProtectedBuffer, VaultError>` | Unwraps DEK from matching active slot and decrypts payload into locked memory. |
+| `MultiSlotVault::add_slot` | `fn add_slot(container: &mut [u8], existing_passphrase: &[u8], new_passphrase: &[u8], config: &SecurityConfig, new_cipher: CipherSuite) -> Result<usize, VaultError>` | Wraps existing DEK under new credential into the first free slot. |
+| `MultiSlotVault::remove_slot` | `fn remove_slot(container: &mut [u8], existing_passphrase: &[u8], slot_index: usize) -> Result<(), VaultError>` | Zeroizes and deactivates target slot while preserving remaining credentials. |
+| `MultiSlotVault::update_payload` | `fn update_payload(container: &mut Vec<u8>, existing_passphrase: &[u8], new_payload: &[u8]) -> Result<(), VaultError>` | Fast payload update reusing existing DEK with zero Argon2id recomputation. |
+| `MultiSlotVault::active_slots` | `fn active_slots(container: &[u8]) -> Result<[bool; 4], VaultError>` | Returns active status flags for all 4 container slots. |
 
-### `CipherSuite`
+### `VaultError`
+
+- `InvalidMagicHeader`: Magic bytes do not match expected signature.
+- `HeaderTooShort`: Container byte slice is shorter than minimum header requirements.
+- `UnsupportedCipherSuite(u8)`: Specified cipher suite identifier is unknown.
+- `UnsupportedKdf(u8)`: Specified KDF algorithm identifier is unknown.
+- `InvalidKdfParameters`: KDF iteration, memory or parallelism values exceed bounds.
+- `CorruptedData`: Payload ciphertext or length field has been modified.
+- `NoMatchingSlot`: No active slot could be unlocked with the provided credential.
+- `AllSlotsOccupied`: All 4 container slots are already active.
+- `SlotIndexOutOfBounds(usize)`: Specified slot index exceeds maximum capacity.
+- `CannotRemoveLastSlot`: Attempted to remove the only remaining active slot.
+- `SlotNotActive(usize)`: Target slot is already inactive.
 
 - `CipherSuite::ChaCha20Poly1305` (`0x01`): ChaCha20-Poly1305 AEAD.
 - `CipherSuite::Aes256Gcm` (`0x02`): Hardware-accelerated AES-256-GCM AEAD.
