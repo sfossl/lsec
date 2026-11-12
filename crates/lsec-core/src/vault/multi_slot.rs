@@ -179,6 +179,13 @@ impl MultiSlotVault {
         container: &[u8],
         passphrase: &[u8],
     ) -> Result<ProtectedArray<DEFAULT_KEY_LEN_BYTES>, VaultError> {
+        if container.len() < MULTI_HEADER_SIZE {
+            return Err(VaultError::HeaderTooShort);
+        }
+        if container[0..6] != MULTI_VAULT_MAGIC {
+            return Err(VaultError::InvalidMagicHeader);
+        }
+
         for i in 0..MAX_SLOTS {
             let offset = HEADER_STATIC_SIZE + (i * SLOT_SIZE);
             if container[offset] != SLOT_STATUS_ACTIVE {
@@ -497,5 +504,27 @@ mod tests {
 
         let err = MultiSlotVault::open(&vault, b"pass").unwrap_err();
         assert!(matches!(err, VaultError::Crypto(_)));
+    }
+
+    #[test]
+    fn test_truncated_container_rejected() {
+        let config = test_fast_config();
+        let mut short_buf = vec![0u8; 10];
+
+        let err = MultiSlotVault::add_slot(
+            &mut short_buf,
+            b"pass",
+            b"new_pass",
+            &config,
+            CipherSuite::ChaCha20Poly1305,
+        )
+        .unwrap_err();
+        assert!(matches!(err, VaultError::HeaderTooShort));
+
+        let err = MultiSlotVault::remove_slot(&mut short_buf, b"pass", 0).unwrap_err();
+        assert!(matches!(err, VaultError::HeaderTooShort));
+
+        let err = MultiSlotVault::update_payload(&mut short_buf, b"pass", b"new").unwrap_err();
+        assert!(matches!(err, VaultError::HeaderTooShort));
     }
 }
