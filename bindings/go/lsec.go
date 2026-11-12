@@ -318,3 +318,140 @@ func VerifyTOTP(secret []byte, code string, timestamp uint64, stepSeconds uint64
 
 	return isValid == 1, nil
 }
+
+func ProcessHarden() error {
+	status := C.lsec_process_harden()
+	return mapStatus(status)
+}
+
+func MultiVaultCreate(payload, passphrase []byte, cipher CipherSuite) ([]byte, error) {
+	var plainPtr, passPtr *C.uint8_t
+	if len(payload) > 0 {
+		plainPtr = (*C.uint8_t)(unsafe.Pointer(&payload[0]))
+	}
+	if len(passphrase) > 0 {
+		passPtr = (*C.uint8_t)(unsafe.Pointer(&passphrase[0]))
+	}
+
+	var outBytes *C.uint8_t
+	var outLen C.size_t
+
+	status := C.lsec_multi_vault_create(
+		plainPtr, C.size_t(len(payload)),
+		passPtr, C.size_t(len(passphrase)),
+		C.uint8_t(cipher),
+		&outBytes, &outLen,
+	)
+	if err := mapStatus(status); err != nil {
+		return nil, err
+	}
+	defer C.lsec_vault_bytes_free(outBytes, outLen)
+
+	return C.GoBytes(unsafe.Pointer(outBytes), C.int(outLen)), nil
+}
+
+func MultiVaultOpen(container, passphrase []byte) (*Buffer, error) {
+	return Unseal(container, passphrase)
+}
+
+func MultiVaultAddSlot(container []byte, existingPassphrase, newPassphrase []byte, cipher CipherSuite) (int, error) {
+	if len(container) == 0 {
+		return -1, ErrVaultCorrupt
+	}
+	cPtr := (*C.uint8_t)(unsafe.Pointer(&container[0]))
+
+	var existPtr, newPtr *C.uint8_t
+	if len(existingPassphrase) > 0 {
+		existPtr = (*C.uint8_t)(unsafe.Pointer(&existingPassphrase[0]))
+	}
+	if len(newPassphrase) > 0 {
+		newPtr = (*C.uint8_t)(unsafe.Pointer(&newPassphrase[0]))
+	}
+
+	var slotIndex C.size_t
+	status := C.lsec_multi_vault_add_slot(
+		cPtr, C.size_t(len(container)),
+		existPtr, C.size_t(len(existingPassphrase)),
+		newPtr, C.size_t(len(newPassphrase)),
+		C.uint8_t(cipher),
+		&slotIndex,
+	)
+	if err := mapStatus(status); err != nil {
+		return -1, err
+	}
+
+	return int(slotIndex), nil
+}
+
+func MultiVaultRemoveSlot(container []byte, existingPassphrase []byte, slotIndex int) error {
+	if len(container) == 0 {
+		return ErrVaultCorrupt
+	}
+	cPtr := (*C.uint8_t)(unsafe.Pointer(&container[0]))
+
+	var existPtr *C.uint8_t
+	if len(existingPassphrase) > 0 {
+		existPtr = (*C.uint8_t)(unsafe.Pointer(&existingPassphrase[0]))
+	}
+
+	status := C.lsec_multi_vault_remove_slot(
+		cPtr, C.size_t(len(container)),
+		existPtr, C.size_t(len(existingPassphrase)),
+		C.size_t(slotIndex),
+	)
+	return mapStatus(status)
+}
+
+func MultiVaultUpdatePayload(container []byte, existingPassphrase, newPayload []byte) ([]byte, error) {
+	if len(container) == 0 {
+		return nil, ErrVaultCorrupt
+	}
+	cPtr := (*C.uint8_t)(unsafe.Pointer(&container[0]))
+
+	var existPtr, plainPtr *C.uint8_t
+	if len(existingPassphrase) > 0 {
+		existPtr = (*C.uint8_t)(unsafe.Pointer(&existingPassphrase[0]))
+	}
+	if len(newPayload) > 0 {
+		plainPtr = (*C.uint8_t)(unsafe.Pointer(&newPayload[0]))
+	}
+
+	var outBytes *C.uint8_t
+	var outLen C.size_t
+
+	status := C.lsec_multi_vault_update_payload(
+		cPtr, C.size_t(len(container)),
+		existPtr, C.size_t(len(existingPassphrase)),
+		plainPtr, C.size_t(len(newPayload)),
+		&outBytes, &outLen,
+	)
+	if err := mapStatus(status); err != nil {
+		return nil, err
+	}
+	defer C.lsec_vault_bytes_free(outBytes, outLen)
+
+	return C.GoBytes(unsafe.Pointer(outBytes), C.int(outLen)), nil
+}
+
+func MultiVaultActiveSlots(container []byte) ([4]bool, error) {
+	var result [4]bool
+	if len(container) == 0 {
+		return result, ErrVaultCorrupt
+	}
+	cPtr := (*C.uint8_t)(unsafe.Pointer(&container[0]))
+
+	var slots [4]C.uint8_t
+	status := C.lsec_multi_vault_active_slots(
+		cPtr, C.size_t(len(container)),
+		(*C.uint8_t)(unsafe.Pointer(&slots[0])),
+		4,
+	)
+	if err := mapStatus(status); err != nil {
+		return result, err
+	}
+
+	for i := 0; i < 4; i++ {
+		result[i] = slots[i] == 1
+	}
+	return result, nil
+}
