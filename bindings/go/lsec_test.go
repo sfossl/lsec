@@ -9,7 +9,7 @@ import (
 
 func TestVersion(t *testing.T) {
 	maj, min, patch := Version()
-	if maj != 0 || min != 1 || patch != 0 {
+	if maj != 0 || min != 2 || patch != 0 {
 		t.Fatalf("unexpected version: %d.%d.%d", maj, min, patch)
 	}
 }
@@ -128,6 +128,84 @@ func TestTOTPFlow(t *testing.T) {
 	}
 	if valid {
 		t.Fatalf("expected invalid code to fail")
+	}
+}
+
+func TestProcessHarden(t *testing.T) {
+	if err := ProcessHarden(); err != nil {
+		t.Fatalf("ProcessHarden failed: %v", err)
+	}
+}
+
+func TestMultiVaultFlow(t *testing.T) {
+	payload := []byte("go multi-vault payload data")
+	pass0 := []byte("go-owner-passphrase")
+	pass1 := []byte("go-recovery-credential")
+
+	container, err := MultiVaultCreate(payload, pass0, CipherChaCha20Poly1305)
+	if err != nil {
+		t.Fatalf("MultiVaultCreate failed: %v", err)
+	}
+	if len(container) < 367 {
+		t.Fatalf("expected container len >= 367, got %d", len(container))
+	}
+
+	slots, err := MultiVaultActiveSlots(container)
+	if err != nil {
+		t.Fatalf("MultiVaultActiveSlots failed: %v", err)
+	}
+	if slots != [4]bool{true, false, false, false} {
+		t.Fatalf("expected slot 0 active, got %v", slots)
+	}
+
+	slotIdx, err := MultiVaultAddSlot(container, pass0, pass1, CipherAES256GCM)
+	if err != nil {
+		t.Fatalf("MultiVaultAddSlot failed: %v", err)
+	}
+	if slotIdx != 1 {
+		t.Fatalf("expected slot index 1, got %d", slotIdx)
+	}
+
+	slots, err = MultiVaultActiveSlots(container)
+	if err != nil {
+		t.Fatalf("MultiVaultActiveSlots failed: %v", err)
+	}
+	if slots != [4]bool{true, true, false, false} {
+		t.Fatalf("expected slots 0 and 1 active, got %v", slots)
+	}
+
+	opened, err := MultiVaultOpen(container, pass1)
+	if err != nil {
+		t.Fatalf("MultiVaultOpen with pass1 failed: %v", err)
+	}
+	defer opened.Free()
+	if !bytes.Equal(opened.Bytes(), payload) {
+		t.Fatalf("expected opened %q, got %q", payload, opened.Bytes())
+	}
+
+	updatedPayload := []byte("go multi-vault payload updated fast")
+	updatedContainer, err := MultiVaultUpdatePayload(container, pass0, updatedPayload)
+	if err != nil {
+		t.Fatalf("MultiVaultUpdatePayload failed: %v", err)
+	}
+
+	// test transparent routing through standard Unseal
+	unsealed, err := Unseal(updatedContainer, pass1)
+	if err != nil {
+		t.Fatalf("Unseal failed: %v", err)
+	}
+	defer unsealed.Free()
+	if !bytes.Equal(unsealed.Bytes(), updatedPayload) {
+		t.Fatalf("expected unsealed %q, got %q", updatedPayload, unsealed.Bytes())
+	}
+
+	if err := MultiVaultRemoveSlot(updatedContainer, pass0, 1); err != nil {
+		t.Fatalf("MultiVaultRemoveSlot failed: %v", err)
+	}
+
+	_, err = MultiVaultOpen(updatedContainer, pass1)
+	if err == nil {
+		t.Fatalf("expected open with removed slot to fail")
 	}
 }
 
