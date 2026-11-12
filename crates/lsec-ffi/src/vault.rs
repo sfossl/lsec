@@ -28,8 +28,12 @@ fn map_vault_error(err: VaultError) -> i32 {
         }
         VaultError::UnsupportedCipherSuite(_)
         | VaultError::UnsupportedKdf(_)
-        | VaultError::InvalidKdfParameters => LSEC_ERR_INVALID_PARAM,
-        VaultError::Crypto(_) => LSEC_ERR_CRYPTO_FAILED,
+        | VaultError::InvalidKdfParameters
+        | VaultError::AllSlotsOccupied
+        | VaultError::SlotIndexOutOfBounds(_)
+        | VaultError::CannotRemoveLastSlot
+        | VaultError::SlotNotActive(_) => LSEC_ERR_INVALID_PARAM,
+        VaultError::NoMatchingSlot | VaultError::Crypto(_) => LSEC_ERR_CRYPTO_FAILED,
         VaultError::Io(_) => LSEC_ERR_IO_FAILED,
     }
 }
