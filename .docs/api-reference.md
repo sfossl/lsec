@@ -66,12 +66,21 @@ OS page-aligned memory allocation, physical RAM locking and deterministic wiping
 | `ProtectedBuffer::as_slice` | `fn as_slice(&self) -> &[u8]` | Returns immutable slice reference to locked memory. |
 | `ProtectedBuffer::as_mut_slice` | `fn as_mut_slice(&mut self) -> &mut [u8]` | Returns mutable slice reference to locked memory. |
 | `ProtectedBuffer::wipe` | `fn wipe(&mut self)` | Overwrites buffer using volatile memory zeroization. |
+| `ProtectedArray::new` | `fn new(data: [u8; N]) -> Self` | Wraps a fixed-size stack array with compiler-fenced zeroization on drop. |
+| `ProtectedArray::zeroed` | `fn zeroed() -> Self` | Initializes a fixed-size stack array with all bytes set to zero. |
+| `ProtectedArray::from_slice` | `fn from_slice(slice: &[u8]) -> Result<Self, MemguardError>` | Copies bytes from slice, returning `LengthMismatch` if length does not match `N`. |
+| `ProtectedArray::with_exposed` | `fn with_exposed<R>(&self, f: impl FnOnce(&[u8; N]) -> R) -> R` | Temporarily exposes inner array to closure scope. |
+| `ProtectedArray::with_exposed_mut` | `fn with_exposed_mut<R>(&mut self, f: impl FnOnce(&mut [u8; N]) -> R) -> R` | Temporarily exposes mutable inner array to closure scope. |
+| `ProtectedArray::len` | `fn len(&self) -> usize` | Returns fixed capacity `N`. |
+| `ProtectedArray::is_empty` | `fn is_empty(&self) -> bool` | Returns true if `N == 0`. |
+| `ProtectedArray::as_array` | `fn as_array(&self) -> &[u8; N]` | Returns reference to underlying fixed-size array. |
 
 ### `MemguardError`
 
 - `ExceedsMaxAllocation(usize)`: Requested buffer size exceeds `DEFAULT_MAX_LOCKED_MEMORY_BYTES`.
 - `AllocationFailed`: Memory allocator was unable to allocate layout.
 - `LockFailed(std::io::Error)`: Operating system refused memory lock system call.
+- `LengthMismatch { expected: usize, actual: usize }`: Source slice length does not match expected array capacity.
 
 ---
 
