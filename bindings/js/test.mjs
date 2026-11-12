@@ -1,12 +1,12 @@
 import assert from 'node:assert';
-import { init, version, Buffer, Vault, TOTP } from './index.js';
+import { init, version, Buffer, Vault, MultiSlotVault, TOTP } from './index.js';
 
 await init();
 
 // 1. version verification
 const v = version();
 assert.strictEqual(v.major, 0);
-assert.strictEqual(v.minor, 1);
+assert.strictEqual(v.minor, 2);
 assert.strictEqual(v.patch, 0);
 
 // 2. buffer lifecycle
@@ -134,6 +134,43 @@ assert.strictEqual(v.patch, 0);
     driftSteps: 1
   });
   assert.strictEqual(driftExceeded, false);
+}
+
+// 8. multi-slot vault container
+{
+  const payload = 'multi-slot-js-sdk-payload';
+  const pass0 = 'primary-js-key';
+  const pass1 = 'recovery-js-key';
+
+  const container = MultiSlotVault.create(payload, pass0, 'chacha20-poly1305');
+  assert.ok(container instanceof Uint8Array);
+  assert.ok(container.length >= 367);
+
+  const initialSlots = MultiSlotVault.activeSlots(container);
+  assert.deepStrictEqual(initialSlots, [true, false, false, false]);
+
+  const slot1 = MultiSlotVault.addSlot(container, pass0, pass1, 'aes-256-gcm');
+  assert.strictEqual(slot1, 1);
+
+  const updatedSlots = MultiSlotVault.activeSlots(container);
+  assert.deepStrictEqual(updatedSlots, [true, true, false, false]);
+
+  const opened = MultiSlotVault.open(container, pass1);
+  assert.strictEqual(opened.text(), payload);
+  opened.free();
+
+  const newPayload = 'updated-payload-without-re-running-argon2id';
+  const updatedContainer = MultiSlotVault.updatePayload(container, pass0, newPayload);
+
+  // verify transparent routing in standard Vault.unseal
+  const unsealed = Vault.unseal(updatedContainer, pass1);
+  assert.strictEqual(unsealed.text(), newPayload);
+  unsealed.free();
+
+  MultiSlotVault.removeSlot(updatedContainer, pass0, 1);
+  assert.throws(() => {
+    MultiSlotVault.open(updatedContainer, pass1);
+  }, /vault unseal failed/);
 }
 
 console.log('all lsec js tests passed');
