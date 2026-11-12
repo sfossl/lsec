@@ -141,20 +141,20 @@ fn parse_cipher(cipher_id: u8) -> Option<CipherSuite> {
 }
 
 unsafe fn to_slice<'a>(ptr: *const u8, len: usize) -> Option<&'a [u8]> {
-    if len == 0 {
-        Some(&[][..])
-    } else if ptr.is_null() {
+    if ptr.is_null() {
         None
+    } else if len == 0 {
+        Some(&[][..])
     } else {
         Some(unsafe { slice::from_raw_parts(ptr, len) })
     }
 }
 
 unsafe fn to_slice_mut<'a>(ptr: *mut u8, len: usize) -> Option<&'a mut [u8]> {
-    if len == 0 {
-        Some(&mut [][..])
-    } else if ptr.is_null() {
+    if ptr.is_null() {
         None
+    } else if len == 0 {
+        Some(&mut [][..])
     } else {
         Some(unsafe { slice::from_raw_parts_mut(ptr, len) })
     }

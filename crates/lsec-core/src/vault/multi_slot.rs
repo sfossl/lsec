@@ -119,20 +119,20 @@ impl MultiSlotVault {
 
         let _dek = Self::unwrap_dek(container, existing_passphrase)?;
 
+        let offset = HEADER_STATIC_SIZE + (slot_index * SLOT_SIZE);
+        if container[offset] != SLOT_STATUS_ACTIVE {
+            return Err(VaultError::SlotNotActive(slot_index));
+        }
+
         let active_count = (0..MAX_SLOTS)
             .filter(|&i| {
-                let offset = HEADER_STATIC_SIZE + (i * SLOT_SIZE);
-                container[offset] == SLOT_STATUS_ACTIVE
+                let off = HEADER_STATIC_SIZE + (i * SLOT_SIZE);
+                container[off] == SLOT_STATUS_ACTIVE
             })
             .count();
 
         if active_count <= 1 {
             return Err(VaultError::CannotRemoveLastSlot);
-        }
-
-        let offset = HEADER_STATIC_SIZE + (slot_index * SLOT_SIZE);
-        if container[offset] != SLOT_STATUS_ACTIVE {
-            return Err(VaultError::SlotNotActive(slot_index));
         }
 
         container[offset..offset + SLOT_SIZE].fill(0);
