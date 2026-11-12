@@ -210,7 +210,7 @@ checksum = "ce5d3ddc6d3fa000eb1536d85e147bfe31aacaba692ed6a876f95cb7c855be78"
 
 [[package]]
 name = "lsec-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aes-gcm",
  "argon2",
@@ -227,14 +227,14 @@ dependencies = [
 
 [[package]]
 name = "lsec-ffi"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "lsec-core",
 ]
 
 [[package]]
 name = "lsec-wasm"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "lsec-core",
  "zeroize",
