@@ -26,6 +26,15 @@ pub extern "C" fn lsec_version_patch() -> u32 {
     0
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn lsec_process_harden() -> i32 {
+    let result = std::panic::catch_unwind(|| match lsec_core::process::harden_process() {
+        Ok(()) => LSEC_OK,
+        Err(_) => LSEC_ERR_IO_FAILED,
+    });
+    result.unwrap_or(LSEC_ERR_PANIC)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -36,6 +45,12 @@ mod tests {
         assert_eq!(lsec_version_major(), 0);
         assert_eq!(lsec_version_minor(), 1);
         assert_eq!(lsec_version_patch(), 0);
+    }
+
+    #[test]
+    fn test_process_harden_c_abi() {
+        let status = unsafe { lsec_process_harden() };
+        assert_eq!(status, LSEC_OK);
     }
 
     #[test]
