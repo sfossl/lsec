@@ -4,6 +4,8 @@
 
 ### Added
 
+- Opt-in process-level hardening module (`lsec-core::process`) providing `harden_process()`, `disable_dumpable()` and `deny_debugger()`.
+- C-ABI exported function `lsec_process_harden()` in `lsec-ffi`.
 - Multi-slot vault container architecture (`MultiSlotVault` in `lsec-core::vault`) with independent DEK unwrapping, fixed 4-slot array and sub-millisecond payload updates.
 - Transparent backward compatibility in `unseal()` supporting both single-envelope (`v0.1`) and multi-slot (`v0.2`) containers.
 - Multi-slot error variants in `VaultError` (`NoMatchingSlot`, `AllSlotsOccupied`, `SlotIndexOutOfBounds`, `CannotRemoveLastSlot`, `SlotNotActive`).
