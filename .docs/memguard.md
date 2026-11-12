@@ -44,6 +44,37 @@ let empty = ProtectedBuffer::new(b"")?;
 assert!(empty.is_empty());
 ```
 
+## Stack Allocation: ProtectedArray<N>
+
+For fixed-size secrets (such as 256-bit symmetric keys, 96-bit nonces and HMAC seeds), `ProtectedArray<const N: usize>` provides stack allocation with volatile zeroization on drop, avoiding the virtual memory overhead of page-locked allocations.
+
+| Property | `ProtectedBuffer` | `ProtectedArray<N>` |
+| :--- | :--- | :--- |
+| **Storage Location** | Page-aligned heap (`mmap`/`VirtualAlloc`) | Stack memory |
+| **Kernel Syscalls** | `mlock` / `VirtualLock` / `madvise` | Zero syscalls |
+| **Allocation Overhead** | 4096-byte OS page boundary | `N` bytes (zero heap overhead) |
+| **Lock Quota** | Counts against `RLIMIT_MEMLOCK` | Excluded from lock limits |
+| **Zeroization** | Volatile memory overwrite | Volatile overwrite and compiler memory barrier |
+| **Primary Use Case** | Variable-length payloads and decrypted files | Ephemeral keys, nonces and HMAC seeds |
+
+### Usage
+
+```rust
+use lsec_core::memguard::ProtectedArray;
+
+// fixed 32-byte key buffer
+let key = ProtectedArray::<32>::new([0x42; 32]);
+
+// scoped access with closure
+key.with_exposed(|raw_slice| {
+    assert_eq!(raw_slice.len(), 32);
+});
+
+// copy from slice with length validation
+let from_slice = ProtectedArray::<16>::from_slice(b"0123456789abcdef")?;
+assert_eq!(from_slice.len(), 16);
+```
+
 ---
 
 ## Connected Topics
