@@ -85,6 +85,62 @@ int32_t lsec_vault_unseal_from_file(
     lsec_protected_buffer_t **out_plaintext
 );
 
+/* multi-slot vault operations */
+int32_t lsec_multi_vault_create(
+    const uint8_t *plaintext,
+    size_t plaintext_len,
+    const uint8_t *passphrase,
+    size_t passphrase_len,
+    uint8_t cipher_id,
+    uint8_t **out_bytes,
+    size_t *out_len
+);
+
+int32_t lsec_multi_vault_open(
+    const uint8_t *container,
+    size_t container_len,
+    const uint8_t *passphrase,
+    size_t passphrase_len,
+    lsec_protected_buffer_t **out_plaintext
+);
+
+int32_t lsec_multi_vault_add_slot(
+    uint8_t *container,
+    size_t container_len,
+    const uint8_t *existing_passphrase,
+    size_t existing_passphrase_len,
+    const uint8_t *new_passphrase,
+    size_t new_passphrase_len,
+    uint8_t new_cipher_id,
+    size_t *out_slot_index
+);
+
+int32_t lsec_multi_vault_remove_slot(
+    uint8_t *container,
+    size_t container_len,
+    const uint8_t *existing_passphrase,
+    size_t existing_passphrase_len,
+    size_t slot_index
+);
+
+int32_t lsec_multi_vault_update_payload(
+    const uint8_t *container,
+    size_t container_len,
+    const uint8_t *existing_passphrase,
+    size_t existing_passphrase_len,
+    const uint8_t *new_payload,
+    size_t new_payload_len,
+    uint8_t **out_bytes,
+    size_t *out_len
+);
+
+int32_t lsec_multi_vault_active_slots(
+    const uint8_t *container,
+    size_t container_len,
+    uint8_t *out_active_slots,
+    size_t out_active_slots_len
+);
+
 void lsec_vault_bytes_free(uint8_t *bytes, size_t len);
 
 /* time-based authentication (totp) */
