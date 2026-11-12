@@ -263,6 +263,187 @@ export class Vault {
   }
 }
 
+export class MultiSlotVault {
+  static create(payload, passphrase, cipher = 'chacha20-poly1305') {
+    ensureInitialized();
+    const plainBytes = toBytes(payload);
+    const passBytes = toBytes(passphrase);
+
+    let cipherId = 1;
+    if (cipher === 'aes-256-gcm' || cipher === 'aes256-gcm' || cipher === 2) {
+      cipherId = 2;
+    }
+
+    const plainPtr = copyToWasm(plainBytes);
+    const passPtr = copyToWasm(passBytes);
+    const outLenPtr = wasmExports.lsec_wasm_alloc(4);
+
+    try {
+      const sealedPtr = wasmExports.lsec_wasm_multi_vault_create(
+        plainPtr,
+        plainBytes.length,
+        passPtr,
+        passBytes.length,
+        cipherId,
+        outLenPtr
+      );
+
+      if (!sealedPtr || sealedPtr === 0) {
+        throw new Error('lsec: multi-slot vault creation failed');
+      }
+
+      const len = new DataView(wasmExports.memory.buffer).getUint32(outLenPtr, true);
+      const containerBytes = copyFromWasm(sealedPtr, len);
+      wasmExports.lsec_wasm_vault_bytes_free(sealedPtr, len);
+      return containerBytes;
+    } finally {
+      if (plainPtr !== 0) wasmExports.lsec_wasm_free(plainPtr, plainBytes.length);
+      if (passPtr !== 0) wasmExports.lsec_wasm_free(passPtr, passBytes.length);
+      if (outLenPtr !== 0) wasmExports.lsec_wasm_free(outLenPtr, 4);
+    }
+  }
+
+  static open(container, passphrase) {
+    return Vault.unseal(container, passphrase);
+  }
+
+  static addSlot(container, existingPassphrase, newPassphrase, cipher = 'chacha20-poly1305') {
+    ensureInitialized();
+    const cBytes = toBytes(container);
+    const existBytes = toBytes(existingPassphrase);
+    const newBytes = toBytes(newPassphrase);
+
+    let cipherId = 1;
+    if (cipher === 'aes-256-gcm' || cipher === 'aes256-gcm' || cipher === 2) {
+      cipherId = 2;
+    }
+
+    const cPtr = copyToWasm(cBytes);
+    const existPtr = copyToWasm(existBytes);
+    const newPtr = copyToWasm(newBytes);
+
+    try {
+      const slotIdx = wasmExports.lsec_wasm_multi_vault_add_slot(
+        cPtr,
+        cBytes.length,
+        existPtr,
+        existBytes.length,
+        newPtr,
+        newBytes.length,
+        cipherId
+      );
+
+      if (slotIdx < 0) {
+        throw new Error('lsec: failed to add slot to multi-slot vault');
+      }
+
+      const updated = copyFromWasm(cPtr, cBytes.length);
+      if (container instanceof Uint8Array) {
+        container.set(updated);
+      }
+      return slotIdx;
+    } finally {
+      if (cPtr !== 0) wasmExports.lsec_wasm_free(cPtr, cBytes.length);
+      if (existPtr !== 0) wasmExports.lsec_wasm_free(existPtr, existBytes.length);
+      if (newPtr !== 0) wasmExports.lsec_wasm_free(newPtr, newBytes.length);
+    }
+  }
+
+  static removeSlot(container, existingPassphrase, slotIndex) {
+    ensureInitialized();
+    const cBytes = toBytes(container);
+    const existBytes = toBytes(existingPassphrase);
+
+    const cPtr = copyToWasm(cBytes);
+    const existPtr = copyToWasm(existBytes);
+
+    try {
+      const status = wasmExports.lsec_wasm_multi_vault_remove_slot(
+        cPtr,
+        cBytes.length,
+        existPtr,
+        existBytes.length,
+        slotIndex
+      );
+
+      if (status !== 0) {
+        throw new Error(`lsec: failed to remove slot ${slotIndex}`);
+      }
+
+      const updated = copyFromWasm(cPtr, cBytes.length);
+      if (container instanceof Uint8Array) {
+        container.set(updated);
+      }
+    } finally {
+      if (cPtr !== 0) wasmExports.lsec_wasm_free(cPtr, cBytes.length);
+      if (existPtr !== 0) wasmExports.lsec_wasm_free(existPtr, existBytes.length);
+    }
+  }
+
+  static updatePayload(container, existingPassphrase, newPayload) {
+    ensureInitialized();
+    const cBytes = toBytes(container);
+    const existBytes = toBytes(existingPassphrase);
+    const plainBytes = toBytes(newPayload);
+
+    const cPtr = copyToWasm(cBytes);
+    const existPtr = copyToWasm(existBytes);
+    const plainPtr = copyToWasm(plainBytes);
+    const outLenPtr = wasmExports.lsec_wasm_alloc(4);
+
+    try {
+      const sealedPtr = wasmExports.lsec_wasm_multi_vault_update_payload(
+        cPtr,
+        cBytes.length,
+        existPtr,
+        existBytes.length,
+        plainPtr,
+        plainBytes.length,
+        outLenPtr
+      );
+
+      if (!sealedPtr || sealedPtr === 0) {
+        throw new Error('lsec: fast payload update failed');
+      }
+
+      const len = new DataView(wasmExports.memory.buffer).getUint32(outLenPtr, true);
+      const updatedBytes = copyFromWasm(sealedPtr, len);
+      wasmExports.lsec_wasm_vault_bytes_free(sealedPtr, len);
+      return updatedBytes;
+    } finally {
+      if (cPtr !== 0) wasmExports.lsec_wasm_free(cPtr, cBytes.length);
+      if (existPtr !== 0) wasmExports.lsec_wasm_free(existPtr, existBytes.length);
+      if (plainPtr !== 0) wasmExports.lsec_wasm_free(plainPtr, plainBytes.length);
+      if (outLenPtr !== 0) wasmExports.lsec_wasm_free(outLenPtr, 4);
+    }
+  }
+
+  static activeSlots(container) {
+    ensureInitialized();
+    const cBytes = toBytes(container);
+    const cPtr = copyToWasm(cBytes);
+    const outPtr = wasmExports.lsec_wasm_alloc(4);
+
+    try {
+      const status = wasmExports.lsec_wasm_multi_vault_active_slots(cPtr, cBytes.length, outPtr);
+      if (status !== 0) {
+        throw new Error('lsec: failed to read active slots');
+      }
+
+      const slotsBytes = copyFromWasm(outPtr, 4);
+      return [
+        slotsBytes[0] === 1,
+        slotsBytes[1] === 1,
+        slotsBytes[2] === 1,
+        slotsBytes[3] === 1
+      ];
+    } finally {
+      if (cPtr !== 0) wasmExports.lsec_wasm_free(cPtr, cBytes.length);
+      if (outPtr !== 0) wasmExports.lsec_wasm_free(outPtr, 4);
+    }
+  }
+}
+
 export class TOTP {
   static decodeBase32(base32Secret) {
     ensureInitialized();
