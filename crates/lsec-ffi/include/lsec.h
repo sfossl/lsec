@@ -30,6 +30,9 @@ extern "C" {
 #define LSEC_TOTP_ALGO_SHA256 1
 #define LSEC_TOTP_ALGO_SHA512 2
 
+/* process isolation and hardening */
+int32_t lsec_process_harden(void);
+
 /* opaque handle to protected memory buffer */
 typedef struct LsecProtectedBuffer lsec_protected_buffer_t;
 
