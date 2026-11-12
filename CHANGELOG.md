@@ -1,6 +1,13 @@
 # Changelog
 
-## v0.1.0 - (2026-11-08)
+## [0.2.0] - Unreleased
+
+### Added
+
+- Stack-allocated zeroizing memory type `ProtectedArray<const N: usize>` in `lsec-core::memguard`.
+- `MemguardError::LengthMismatch` variant for fixed-size slice validation.
+
+## [0.1.0] - (2026-11-08)
 
 - Core cryptographic engine in Rust (`crates/lsec-core`) with memory protection (`MemGuard`), zeroization and mlock protection.
 - Secure local vault storage using ChaCha20-Poly1305 authenticated encryption and Argon2id key derivation.
