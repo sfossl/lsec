@@ -157,6 +157,23 @@ RFC 6238 time-based authentication and Base32 secret decoding.
 
 ---
 
+## Module: `lsec-core::process`
+
+Process-level security controls and anti-debugging primitives.
+
+| Function | Signature | Description |
+| :--- | :--- | :--- |
+| `harden_process` | `fn harden_process() -> Result<(), ProcessError>` | Disables core dumps, prevents ptrace attachment and restricts debugger access. |
+| `disable_dumpable` | `fn disable_dumpable() -> Result<(), ProcessError>` | Disables core dump generation (`PR_SET_DUMPABLE` on Linux, error box suppression on Windows). |
+| `deny_debugger` | `fn deny_debugger() -> Result<(), ProcessError>` | Prevents debugger attachment (`PT_DENY_ATTACH` on macOS). |
+
+### `ProcessError`
+
+- `SyscallFailed(std::io::Error)`: Operating system refused hardening system call.
+- `UnsupportedPlatform`: Process hardening is not available on target architecture.
+
+---
+
 ## Module: `lsec-ffi` (C-ABI)
 
 C99 header `include/lsec.h` function declarations and error codes.
@@ -216,6 +233,12 @@ C99 header `include/lsec.h` function declarations and error codes.
 | `lsec_totp_decode_base32` | `int32_t lsec_totp_decode_base32(const char *base32_str, lsec_protected_buffer_t **out_buf)` | Decodes Base32 secret into protected buffer. |
 | `lsec_totp_generate` | `int32_t lsec_totp_generate(const uint8_t *secret, size_t secret_len, uint64_t timestamp, uint64_t step_seconds, uint32_t digits, uint8_t algorithm_id, char *out_code, size_t out_code_capacity)` | Generates TOTP passcode for specified timestamp. |
 | `lsec_totp_verify` | `int32_t lsec_totp_verify(const uint8_t *secret, size_t secret_len, const char *candidate_code, uint64_t timestamp, uint64_t step_seconds, uint32_t digits, uint8_t drift_steps, uint8_t algorithm_id, int32_t *out_is_valid)` | Verifies candidate passcode with drift tolerance. |
+
+#### Process Hardening
+
+| Function | Signature | Description |
+| :--- | :--- | :--- |
+| `lsec_process_harden` | `int32_t lsec_process_harden(void)` | Enforces anti-debugging and dump exclusion across platform APIs. |
 
 ---
 
