@@ -14,7 +14,8 @@ npm install @sfossl/lsec
 | :--- | :--- | :--- |
 | `Buffer` | Protected memory allocation with manual zeroization | Node.js, Browsers, PWAs, Edge |
 | `Vault` | Envelope encryption with Argon2id and ChaCha20-Poly1305 | Node.js, Browsers, PWAs, Edge |
-| `Totp` | RFC 6238 token code generation and timing-safe verify | Node.js, Browsers, PWAs, Edge |
+| `MultiSlotVault` | Multi-slot container encryption and sub-millisecond fast updates | Node.js, Browsers, PWAs, Edge |
+| `TOTP` | RFC 6238 token code generation and timing-safe verify | Node.js, Browsers, PWAs, Edge |
 
 ## Usage
 
@@ -23,7 +24,7 @@ npm install @sfossl/lsec
 In Node.js environments, `init()` automatically loads the embedded WebAssembly binary:
 
 ```javascript
-import { init, Vault, Totp } from '@sfossl/lsec';
+import { init, Vault, TOTP } from '@sfossl/lsec';
 
 // initialize wasm engine
 await init();
@@ -36,10 +37,37 @@ const sealed = Vault.seal(data, passphrase);
 
 // decrypt into protected buffer
 const unsealed = Vault.unseal(sealed, passphrase);
-console.log("decrypted bytes:", unsealed.bytes.length);
+console.log("decrypted bytes:", unsealed.length);
 
 // zeroize and free memory
 unsealed.free();
+```
+
+### Multi-Slot Vault
+
+`MultiSlotVault` provides LUKS-style envelope encryption with up to 4 independent credential slots:
+
+```javascript
+import { init, MultiSlotVault } from '@sfossl/lsec';
+
+await init();
+
+const payload = new TextEncoder().encode("sensitive-payload");
+const pass1 = new TextEncoder().encode("primary-passphrase");
+const pass2 = new TextEncoder().encode("recovery-passphrase");
+
+// create container with slot 0
+let container = MultiSlotVault.create(payload, pass1);
+
+// add secondary credential to slot 1
+MultiSlotVault.addSlot(container, pass1, pass2);
+
+// fast payload update without re-deriving slot keys
+container = MultiSlotVault.updatePayload(container, pass2, new TextEncoder().encode("updated-payload"));
+
+// open container with any active slot
+const decrypted = MultiSlotVault.open(container, pass2);
+decrypted.free();
 ```
 
 ### Browser and Bundlers

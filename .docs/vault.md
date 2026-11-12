@@ -50,6 +50,67 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+## Multi-Slot Container Architecture
+
+`MultiSlotVault` separates payload encryption from credential derivation:
+* **Data Encryption Key (DEK)**: A random 256-bit symmetric key encrypts the payload directly.
+* **Key Slots**: 4 fixed 90-byte slots wrap the DEK under independent credentials and KDF configurations.
+* **Instant Updates**: `update_payload` re-encrypts only the payload using the active DEK, executing in sub-millisecond latency without re-running Argon2id.
+* **Credential Diversity**: Adding secondary passphrases or recovery keys operates without re-encrypting the underlying payload.
+
+### Multi-Slot Header Layout
+
+| Offset | Size | Field | Description |
+| :--- | :--- | :--- | :--- |
+| `0..6` | 6 bytes | Magic Header | Constant identifier `LSEC\x02\x00` |
+| `6..7` | 1 byte | Payload Cipher | `0x01` (ChaCha20-Poly1305), `0x02` (AES-256-GCM) |
+| `7..97` | 90 bytes | Slot 0 | Status, cipher, salt, Argon2 parameters and wrapped DEK |
+| `97..187` | 90 bytes | Slot 1 | Status, cipher, salt, Argon2 parameters and wrapped DEK |
+| `187..277` | 90 bytes | Slot 2 | Status, cipher, salt, Argon2 parameters and wrapped DEK |
+| `277..367` | 90 bytes | Slot 3 | Status, cipher, salt, Argon2 parameters and wrapped DEK |
+| `367..` | N bytes | Payload Ciphertext | Nonce, payload ciphertext and 16-byte authentication tag |
+
+### Multi-Slot Usage
+
+```rust
+use lsec_core::config::SecurityConfig;
+use lsec_core::vault::{CipherSuite, MultiSlotVault};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let config = SecurityConfig::default();
+    let payload = b"payload data";
+
+    // create container with slot 0
+    let mut vault = MultiSlotVault::create(
+        payload,
+        b"primary-passphrase",
+        CipherSuite::ChaCha20Poly1305,
+        &config,
+    )?;
+
+    // add recovery credential to slot 1
+    MultiSlotVault::add_slot(
+        &mut vault,
+        b"primary-passphrase",
+        b"recovery-credential",
+        &config,
+        CipherSuite::ChaCha20Poly1305,
+    )?;
+
+    // fast update: zero argon2id recomputation
+    MultiSlotVault::update_payload(
+        &mut vault,
+        b"primary-passphrase",
+        b"updated payload data",
+    )?;
+
+    // open container with either credential
+    let opened = MultiSlotVault::open(&vault, b"recovery-credential")?;
+    assert_eq!(&opened[..], b"updated payload data");
+    Ok(())
+}
+```
+
 ---
 
 ## Connected Topics

@@ -39,6 +39,7 @@ pub enum MemguardError {
     ExceedsMaxAllocation(usize),
     AllocationFailed,
     LockFailed(std::io::Error),
+    LengthMismatch { expected: usize, actual: usize },
 }
 
 impl fmt::Display for MemguardError {
@@ -49,6 +50,13 @@ impl fmt::Display for MemguardError {
             }
             Self::AllocationFailed => write!(f, "memory allocation failed"),
             Self::LockFailed(err) => write!(f, "failed to lock memory into ram: {}", err),
+            Self::LengthMismatch { expected, actual } => {
+                write!(
+                    f,
+                    "buffer length mismatch: expected {}, got {}",
+                    expected, actual
+                )
+            }
         }
     }
 }
@@ -61,7 +69,7 @@ pub struct ProtectedBuffer {
     layout: Layout,
 }
 
-// safety: protected buffer owns the underlying memory allocation exclusively
+// raw pointer holds sole ownership of the allocated pages
 unsafe impl Send for ProtectedBuffer {}
 unsafe impl Sync for ProtectedBuffer {}
 

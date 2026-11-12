@@ -11,6 +11,11 @@ pub enum VaultError {
     UnsupportedKdf(u8),
     InvalidKdfParameters,
     CorruptedData,
+    NoMatchingSlot,
+    AllSlotsOccupied,
+    SlotIndexOutOfBounds(usize),
+    CannotRemoveLastSlot,
+    SlotNotActive(usize),
     Crypto(CryptoError),
     Io(IoError),
 }
@@ -26,6 +31,13 @@ impl fmt::Display for VaultError {
                 write!(f, "vault kdf parameters out of acceptable bounds")
             }
             Self::CorruptedData => write!(f, "vault payload is corrupted or corrupted length"),
+            Self::NoMatchingSlot => {
+                write!(f, "no active vault slot matched the provided credential")
+            }
+            Self::AllSlotsOccupied => write!(f, "all vault container slots are occupied"),
+            Self::SlotIndexOutOfBounds(idx) => write!(f, "slot index {} is out of bounds", idx),
+            Self::CannotRemoveLastSlot => write!(f, "cannot remove the last active vault slot"),
+            Self::SlotNotActive(idx) => write!(f, "slot {} is not active", idx),
             Self::Crypto(err) => write!(f, "vault cryptographic failure: {}", err),
             Self::Io(err) => write!(f, "vault filesystem io failure: {}", err),
         }

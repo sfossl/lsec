@@ -1,6 +1,6 @@
 {
   "name": "@sfossl/lsec",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "JavaScript and WebAssembly client SDK for lsec: memory protection, local encrypted vault and TOTP authentication.",
   "type": "module",
   "main": "./index.js",
@@ -11,6 +11,13 @@
       "import": "./index.js"
     }
   },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "lsec_wasm.wasm",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "test": "node test.mjs"
   },

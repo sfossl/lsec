@@ -42,6 +42,10 @@ pub fn seal_default(plaintext: &[u8], passphrase: &[u8]) -> Result<Vec<u8>, Vaul
 }
 
 pub fn unseal(vault_bytes: &[u8], passphrase: &[u8]) -> Result<ProtectedBuffer, VaultError> {
+    if super::multi_slot::MultiSlotVault::is_multi_slot(vault_bytes) {
+        return super::multi_slot::MultiSlotVault::open(vault_bytes, passphrase);
+    }
+
     let (header, ciphertext) = VaultHeader::deserialize(vault_bytes)?;
     let serialized_header = &vault_bytes[..HEADER_SIZE];
 

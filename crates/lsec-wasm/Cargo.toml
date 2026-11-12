@@ -12,6 +12,6 @@ readme = "README.md"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-lsec-core = { path = "../lsec-core", version = "0.1.0" }
+lsec-core = { path = "../lsec-core", version = "0.2.0" }
 zeroize = { workspace = true }
 

@@ -33,7 +33,7 @@ const passphrase = new TextEncoder().encode("passphrase");
 const sealed = Vault.seal(data, passphrase);
 const unsealed = Vault.unseal(sealed, passphrase);
 
-console.log(unsealed.bytes);
+console.log(unsealed.bytes());
 unsealed.free();
 ```
 

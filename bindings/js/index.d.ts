@@ -55,6 +55,42 @@ export class Vault {
   ): Buffer;
 }
 
+export class MultiSlotVault {
+  static create(
+    payload: BinarySource,
+    passphrase: BinarySource,
+    cipher?: CipherAlgorithm
+  ): Uint8Array;
+
+  static open(
+    container: BinarySource,
+    passphrase: BinarySource
+  ): Buffer;
+
+  static addSlot(
+    container: Uint8Array,
+    existingPassphrase: BinarySource,
+    newPassphrase: BinarySource,
+    cipher?: CipherAlgorithm
+  ): number;
+
+  static removeSlot(
+    container: Uint8Array,
+    existingPassphrase: BinarySource,
+    slotIndex: number
+  ): void;
+
+  static updatePayload(
+    container: BinarySource,
+    existingPassphrase: BinarySource,
+    newPayload: BinarySource
+  ): Uint8Array;
+
+  static activeSlots(
+    container: BinarySource
+  ): [boolean, boolean, boolean, boolean];
+}
+
 export class TOTP {
   static decodeBase32(base32Secret: string): Buffer;
 
@@ -69,4 +105,6 @@ export class TOTP {
     options?: TOTPVerifyOptions
   ): boolean;
 }
+
+export { TOTP as Totp };
 

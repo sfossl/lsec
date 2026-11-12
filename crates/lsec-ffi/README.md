@@ -1,6 +1,6 @@
 ## Overview
 
-`lsec-ffi` exposes a standard C99 ABI interface for the `lsec` defense-in-depth security engine. It compiles into shared (`.so`, `.dylib`, `.dll`) and static (`.a`) libraries accompanied by native C headers (`include/lsec.h`) for low-level systems programming and foreign function interfaces (FFI).
+`lsec-ffi` exposes a standard C99 ABI interface for the `lsec` defense-in-depth security engine. It compiles into shared (`.so`, `.dylib`, `.dll`) and static (`.a`) libraries accompanied by native C headers (`include/lsec.h`) for low-level systems programming, process hardening, multi-slot vault containers and foreign function interfaces (FFI).
 
 ## Header and Artifacts
 

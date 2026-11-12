@@ -66,12 +66,21 @@ OS page-aligned memory allocation, physical RAM locking and deterministic wiping
 | `ProtectedBuffer::as_slice` | `fn as_slice(&self) -> &[u8]` | Returns immutable slice reference to locked memory. |
 | `ProtectedBuffer::as_mut_slice` | `fn as_mut_slice(&mut self) -> &mut [u8]` | Returns mutable slice reference to locked memory. |
 | `ProtectedBuffer::wipe` | `fn wipe(&mut self)` | Overwrites buffer using volatile memory zeroization. |
+| `ProtectedArray::new` | `fn new(data: [u8; N]) -> Self` | Wraps a fixed-size stack array with compiler-fenced zeroization on drop. |
+| `ProtectedArray::zeroed` | `fn zeroed() -> Self` | Initializes a fixed-size stack array with all bytes set to zero. |
+| `ProtectedArray::from_slice` | `fn from_slice(slice: &[u8]) -> Result<Self, MemguardError>` | Copies bytes from slice, returning `LengthMismatch` if length does not match `N`. |
+| `ProtectedArray::with_exposed` | `fn with_exposed<R>(&self, f: impl FnOnce(&[u8; N]) -> R) -> R` | Temporarily exposes inner array to closure scope. |
+| `ProtectedArray::with_exposed_mut` | `fn with_exposed_mut<R>(&mut self, f: impl FnOnce(&mut [u8; N]) -> R) -> R` | Temporarily exposes mutable inner array to closure scope. |
+| `ProtectedArray::len` | `fn len(&self) -> usize` | Returns fixed capacity `N`. |
+| `ProtectedArray::is_empty` | `fn is_empty(&self) -> bool` | Returns true if `N == 0`. |
+| `ProtectedArray::as_array` | `fn as_array(&self) -> &[u8; N]` | Returns reference to underlying fixed-size array. |
 
 ### `MemguardError`
 
 - `ExceedsMaxAllocation(usize)`: Requested buffer size exceeds `DEFAULT_MAX_LOCKED_MEMORY_BYTES`.
 - `AllocationFailed`: Memory allocator was unable to allocate layout.
 - `LockFailed(std::io::Error)`: Operating system refused memory lock system call.
+- `LengthMismatch { expected: usize, actual: usize }`: Source slice length does not match expected array capacity.
 
 ---
 
@@ -99,11 +108,29 @@ Binary envelope container and atomic filesystem storage.
 | Function | Signature | Description |
 | :--- | :--- | :--- |
 | `seal` | `fn seal(plaintext: &[u8], passphrase: &[u8], config: &SecurityConfig, cipher: CipherSuite) -> Result<Vec<u8>, VaultError>` | Encrypts plaintext into a self-describing binary vault container. |
-| `unseal` | `fn unseal(vault_bytes: &[u8], passphrase: &[u8]) -> Result<ProtectedBuffer, VaultError>` | Authenticates header and decrypts container into locked memory. |
+| `unseal` | `fn unseal(vault_bytes: &[u8], passphrase: &[u8]) -> Result<ProtectedBuffer, VaultError>` | Authenticates header and decrypts single-envelope or multi-slot container into locked memory. |
 | `seal_to_file` | `fn seal_to_file<P: AsRef<Path>>(path: P, plaintext: &[u8], passphrase: &[u8], config: &SecurityConfig, cipher: CipherSuite) -> Result<(), VaultError>` | Atomically writes vault container to disk with `0600` permissions. |
 | `unseal_from_file` | `fn unseal_from_file<P: AsRef<Path>>(path: P, passphrase: &[u8]) -> Result<ProtectedBuffer, VaultError>` | Reads file from disk and decrypts container into locked memory. |
+| `MultiSlotVault::create` | `fn create(payload: &[u8], passphrase: &[u8], cipher: CipherSuite, config: &SecurityConfig) -> Result<Vec<u8>, VaultError>` | Generates a 256-bit DEK and creates a multi-slot container with slot 0. |
+| `MultiSlotVault::open` | `fn open(container: &[u8], passphrase: &[u8]) -> Result<ProtectedBuffer, VaultError>` | Unwraps DEK from matching active slot and decrypts payload into locked memory. |
+| `MultiSlotVault::add_slot` | `fn add_slot(container: &mut [u8], existing_passphrase: &[u8], new_passphrase: &[u8], config: &SecurityConfig, new_cipher: CipherSuite) -> Result<usize, VaultError>` | Wraps existing DEK under new credential into the first free slot. |
+| `MultiSlotVault::remove_slot` | `fn remove_slot(container: &mut [u8], existing_passphrase: &[u8], slot_index: usize) -> Result<(), VaultError>` | Zeroizes and deactivates target slot while preserving remaining credentials. |
+| `MultiSlotVault::update_payload` | `fn update_payload(container: &mut Vec<u8>, existing_passphrase: &[u8], new_payload: &[u8]) -> Result<(), VaultError>` | Fast payload update reusing existing DEK with zero Argon2id recomputation. |
+| `MultiSlotVault::active_slots` | `fn active_slots(container: &[u8]) -> Result<[bool; 4], VaultError>` | Returns active status flags for all 4 container slots. |
 
-### `CipherSuite`
+### `VaultError`
+
+- `InvalidMagicHeader`: Magic bytes do not match expected signature.
+- `HeaderTooShort`: Container byte slice is shorter than minimum header requirements.
+- `UnsupportedCipherSuite(u8)`: Specified cipher suite identifier is unknown.
+- `UnsupportedKdf(u8)`: Specified KDF algorithm identifier is unknown.
+- `InvalidKdfParameters`: KDF iteration, memory or parallelism values exceed bounds.
+- `CorruptedData`: Payload ciphertext or length field has been modified.
+- `NoMatchingSlot`: No active slot could be unlocked with the provided credential.
+- `AllSlotsOccupied`: All 4 container slots are already active.
+- `SlotIndexOutOfBounds(usize)`: Specified slot index exceeds maximum capacity.
+- `CannotRemoveLastSlot`: Attempted to remove the only remaining active slot.
+- `SlotNotActive(usize)`: Target slot is already inactive.
 
 - `CipherSuite::ChaCha20Poly1305` (`0x01`): ChaCha20-Poly1305 AEAD.
 - `CipherSuite::Aes256Gcm` (`0x02`): Hardware-accelerated AES-256-GCM AEAD.
@@ -127,6 +154,23 @@ RFC 6238 time-based authentication and Base32 secret decoding.
 - `TotpAlgorithm::Sha1`: HMAC-SHA1 (RFC 6238 default).
 - `TotpAlgorithm::Sha256`: HMAC-SHA256.
 - `TotpAlgorithm::Sha512`: HMAC-SHA512.
+
+---
+
+## Module: `lsec-core::process`
+
+Process-level security controls and anti-debugging primitives.
+
+| Function | Signature | Description |
+| :--- | :--- | :--- |
+| `harden_process` | `fn harden_process() -> Result<(), ProcessError>` | Disables core dumps, prevents ptrace attachment and restricts debugger access. |
+| `disable_dumpable` | `fn disable_dumpable() -> Result<(), ProcessError>` | Disables core dump generation (`PR_SET_DUMPABLE` on Linux, error box suppression on Windows). |
+| `deny_debugger` | `fn deny_debugger() -> Result<(), ProcessError>` | Prevents debugger attachment (`PT_DENY_ATTACH` on macOS). |
+
+### `ProcessError`
+
+- `SyscallFailed(std::io::Error)`: Operating system refused hardening system call.
+- `UnsupportedPlatform`: Process hardening is not available on target architecture.
 
 ---
 
@@ -177,10 +221,16 @@ C99 header `include/lsec.h` function declarations and error codes.
 | Function | Signature | Description |
 | :--- | :--- | :--- |
 | `lsec_vault_seal` | `int32_t lsec_vault_seal(const uint8_t *plain, size_t plain_len, const uint8_t *pass, size_t pass_len, uint8_t cipher_id, uint8_t **out_bytes, size_t *out_len)` | Encrypts plaintext into binary vault envelope. |
-| `lsec_vault_unseal` | `int32_t lsec_vault_unseal(const uint8_t *vault, size_t vault_len, const uint8_t *pass, size_t pass_len, lsec_protected_buffer_t **out_plain)` | Decrypts vault envelope into protected buffer. |
+| `lsec_vault_unseal` | `int32_t lsec_vault_unseal(const uint8_t *vault, size_t vault_len, const uint8_t *pass, size_t pass_len, lsec_protected_buffer_t **out_plain)` | Decrypts single envelope or multi-slot vault into protected buffer. |
 | `lsec_vault_seal_to_file` | `int32_t lsec_vault_seal_to_file(const char *path, const uint8_t *plain, size_t plain_len, const uint8_t *pass, size_t pass_len, uint8_t cipher_id)` | Atomically seals payload to disk with `0600` permissions. |
 | `lsec_vault_unseal_from_file` | `int32_t lsec_vault_unseal_from_file(const char *path, const uint8_t *pass, size_t pass_len, lsec_protected_buffer_t **out_plain)` | Reads and decrypts file into protected buffer. |
-| `lsec_vault_bytes_free` | `void lsec_vault_bytes_free(uint8_t *bytes, size_t len)` | Deallocates byte slice returned by `lsec_vault_seal`. |
+| `lsec_multi_vault_create` | `int32_t lsec_multi_vault_create(const uint8_t *plain, size_t plain_len, const uint8_t *pass, size_t pass_len, uint8_t cipher_id, uint8_t **out_bytes, size_t *out_len)` | Creates multi-slot container with slot 0. |
+| `lsec_multi_vault_open` | `int32_t lsec_multi_vault_open(const uint8_t *container, size_t container_len, const uint8_t *pass, size_t pass_len, lsec_protected_buffer_t **out_plain)` | Opens multi-slot container using matching active credential. |
+| `lsec_multi_vault_add_slot` | `int32_t lsec_multi_vault_add_slot(uint8_t *container, size_t container_len, const uint8_t *exist_pass, size_t exist_pass_len, const uint8_t *new_pass, size_t new_pass_len, uint8_t new_cipher_id, size_t *out_slot_index)` | Wraps DEK into first free slot under new credential. |
+| `lsec_multi_vault_remove_slot` | `int32_t lsec_multi_vault_remove_slot(uint8_t *container, size_t container_len, const uint8_t *exist_pass, size_t exist_pass_len, size_t slot_index)` | Zeroizes and deactivates specified slot index. |
+| `lsec_multi_vault_update_payload` | `int32_t lsec_multi_vault_update_payload(const uint8_t *container, size_t container_len, const uint8_t *exist_pass, size_t exist_pass_len, const uint8_t *new_plain, size_t new_plain_len, uint8_t **out_bytes, size_t *out_len)` | Fast payload update reusing DEK without Argon2 recomputation. |
+| `lsec_multi_vault_active_slots` | `int32_t lsec_multi_vault_active_slots(const uint8_t *container, size_t container_len, uint8_t *out_active_slots, size_t out_active_slots_len)` | Writes active flags for all 4 slots into destination slice. |
+| `lsec_vault_bytes_free` | `void lsec_vault_bytes_free(uint8_t *bytes, size_t len)` | Deallocates byte slice returned by vault functions. |
 
 #### Time-Based Authentication
 
@@ -189,6 +239,12 @@ C99 header `include/lsec.h` function declarations and error codes.
 | `lsec_totp_decode_base32` | `int32_t lsec_totp_decode_base32(const char *base32_str, lsec_protected_buffer_t **out_buf)` | Decodes Base32 secret into protected buffer. |
 | `lsec_totp_generate` | `int32_t lsec_totp_generate(const uint8_t *secret, size_t secret_len, uint64_t timestamp, uint64_t step_seconds, uint32_t digits, uint8_t algorithm_id, char *out_code, size_t out_code_capacity)` | Generates TOTP passcode for specified timestamp. |
 | `lsec_totp_verify` | `int32_t lsec_totp_verify(const uint8_t *secret, size_t secret_len, const char *candidate_code, uint64_t timestamp, uint64_t step_seconds, uint32_t digits, uint8_t drift_steps, uint8_t algorithm_id, int32_t *out_is_valid)` | Verifies candidate passcode with drift tolerance. |
+
+#### Process Hardening
+
+| Function | Signature | Description |
+| :--- | :--- | :--- |
+| `lsec_process_harden` | `int32_t lsec_process_harden(void)` | Enforces anti-debugging and dump exclusion across platform APIs. |
 
 ---
 
@@ -217,9 +273,16 @@ Idiomatic Go package using C-ABI bindings.
 | `Unseal` | `func Unseal(vaultBytes, passphrase []byte) (*Buffer, error)` | Decrypts binary envelope into a protected buffer. |
 | `SealToFile` | `func SealToFile(path string, plaintext, passphrase []byte, cipher CipherSuite) error` | Atomically writes vault container with `0600` permissions. |
 | `UnsealFromFile` | `func UnsealFromFile(path string, passphrase []byte) (*Buffer, error)` | Reads and decrypts file into a protected buffer. |
-| `TOTPDecodeBase32` | `func TOTPDecodeBase32(base32Secret string) (*Buffer, error)` | Decodes Base32 secret string into protected buffer. |
-| `TOTPGenerateCode` | `func TOTPGenerateCode(secret []byte, timestamp, stepSeconds uint64, digits uint32, algo TotpAlgorithm) (string, error)` | Generates TOTP code for timestamp. |
-| `TOTPVerifyCode` | `func TOTPVerifyCode(secret []byte, candidate string, timestamp, stepSeconds uint64, digits uint32, driftSteps uint8, algo TotpAlgorithm) (bool, error)` | Verifies passcode across drift window. |
+| `ProcessHarden` | `func ProcessHarden() error` | Applies process-level dump prevention and anti-debugging controls. |
+| `MultiVaultCreate` | `func MultiVaultCreate(payload, passphrase []byte, cipher CipherSuite) ([]byte, error)` | Generates 256-bit DEK and creates a multi-slot container. |
+| `MultiVaultOpen` | `func MultiVaultOpen(container, passphrase []byte) (*Buffer, error)` | Unwraps DEK and decrypts payload into a protected buffer. |
+| `MultiVaultAddSlot` | `func MultiVaultAddSlot(container []byte, existingPassphrase, newPassphrase []byte, cipher CipherSuite) (int, error)` | Wraps DEK into first free slot under new credential. |
+| `MultiVaultRemoveSlot` | `func MultiVaultRemoveSlot(container []byte, existingPassphrase []byte, slotIndex int) error` | Zeroizes and deactivates specified slot index. |
+| `MultiVaultUpdatePayload` | `func MultiVaultUpdatePayload(container []byte, existingPassphrase, newPayload []byte) ([]byte, error)` | Fast payload update reusing existing DEK. |
+| `MultiVaultActiveSlots` | `func MultiVaultActiveSlots(container []byte) ([4]bool, error)` | Returns active status flags for all 4 slots. |
+| `DecodeBase32` | `func DecodeBase32(base32Secret string) (*Buffer, error)` | Decodes Base32 secret string into protected buffer. |
+| `GenerateTOTP` | `func GenerateTOTP(secret []byte, timestamp, stepSeconds uint64, digits uint32, algo TotpAlgorithm) (string, error)` | Generates TOTP code for timestamp. |
+| `VerifyTOTP` | `func VerifyTOTP(secret []byte, code string, timestamp, stepSeconds uint64, digits uint32, driftSteps uint8, algo TotpAlgorithm) (bool, error)` | Verifies passcode across drift window. |
 
 ---
 
@@ -240,11 +303,17 @@ Zero-dependency JavaScript and TypeScript SDK for Node.js, browsers and offline 
 | :--- | :--- | :--- |
 | `new Buffer` | `constructor(data: Uint8Array \| number)` | Allocates locked buffer with initial data or zero length. |
 | `Buffer.prototype.length` | `get length(): number` | Returns byte length of allocated buffer. |
-| `Buffer.prototype.bytes` | `get bytes(): Uint8Array` | Returns copy of buffer contents. |
+| `Buffer.prototype.bytes` | `bytes(): Uint8Array` | Returns copy of buffer contents. |
 | `Buffer.prototype.wipe` | `wipe(): void` | Overwrites buffer memory with zeros. |
 | `Buffer.prototype.free` | `free(): void` | Deallocates Wasm linear memory buffer. |
 | `Vault.seal` | `static seal(plaintext: Uint8Array, passphrase: Uint8Array, cipher?: number): Uint8Array` | Encrypts plaintext into binary vault envelope. |
-| `Vault.unseal` | `static unseal(vaultBytes: Uint8Array, passphrase: Uint8Array): Buffer` | Decrypts vault envelope into protected buffer. |
+| `Vault.unseal` | `static unseal(vaultBytes: Uint8Array, passphrase: Uint8Array): Buffer` | Decrypts single-envelope or multi-slot vault into protected buffer. |
+| `MultiSlotVault.create` | `static create(payload: BinarySource, passphrase: BinarySource, cipher?: string): Uint8Array` | Creates multi-slot container with slot 0. |
+| `MultiSlotVault.open` | `static open(container: BinarySource, passphrase: BinarySource): Buffer` | Opens multi-slot container using active credential. |
+| `MultiSlotVault.addSlot` | `static addSlot(container: Uint8Array, existingPassphrase: BinarySource, newPassphrase: BinarySource, cipher?: string): number` | Wraps DEK into first free slot under new credential. |
+| `MultiSlotVault.removeSlot` | `static removeSlot(container: Uint8Array, existingPassphrase: BinarySource, slotIndex: number): void` | Zeroizes and disables targeted slot. |
+| `MultiSlotVault.updatePayload` | `static updatePayload(container: BinarySource, existingPassphrase: BinarySource, newPayload: BinarySource): Uint8Array` | Fast payload update reusing existing DEK. |
+| `MultiSlotVault.activeSlots` | `static activeSlots(container: BinarySource): [boolean, boolean, boolean, boolean]` | Returns active flags for all 4 slots. |
 | `TOTP.decodeBase32` | `static decodeBase32(base32Str: string): Buffer` | Decodes Base32 secret into protected buffer. |
-| `TOTP.generate` | `static generate(secret: Uint8Array, timestamp?: number, stepSeconds?: number, digits?: number, algorithm?: number): string` | Generates TOTP passcode string. |
-| `TOTP.verify` | `static verify(secret: Uint8Array, candidateCode: string, timestamp?: number, stepSeconds?: number, digits?: number, driftSteps?: number, algorithm?: number): boolean` | Verifies candidate passcode with drift tolerance. |
+| `TOTP.generate` | `static generate(secret: BinarySource, options?: TOTPGenerateOptions): string` | Generates TOTP passcode string. |
+| `TOTP.verify` | `static verify(secret: BinarySource, candidateCode: string, options?: TOTPVerifyOptions): boolean` | Verifies candidate passcode with drift tolerance. |

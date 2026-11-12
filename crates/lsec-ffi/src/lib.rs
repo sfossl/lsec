@@ -18,12 +18,21 @@ pub extern "C" fn lsec_version_major() -> u32 {
 
 #[no_mangle]
 pub extern "C" fn lsec_version_minor() -> u32 {
-    1
+    2
 }
 
 #[no_mangle]
 pub extern "C" fn lsec_version_patch() -> u32 {
     0
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn lsec_process_harden() -> i32 {
+    let result = std::panic::catch_unwind(|| match lsec_core::process::harden_process() {
+        Ok(()) => LSEC_OK,
+        Err(_) => LSEC_ERR_IO_FAILED,
+    });
+    result.unwrap_or(LSEC_ERR_PANIC)
 }
 
 #[cfg(test)]
@@ -34,8 +43,14 @@ mod tests {
     #[test]
     fn test_version_exports() {
         assert_eq!(lsec_version_major(), 0);
-        assert_eq!(lsec_version_minor(), 1);
+        assert_eq!(lsec_version_minor(), 2);
         assert_eq!(lsec_version_patch(), 0);
+    }
+
+    #[test]
+    fn test_process_harden_c_abi() {
+        let status = unsafe { lsec_process_harden() };
+        assert_eq!(status, LSEC_OK);
     }
 
     #[test]
@@ -161,6 +176,122 @@ mod tests {
         assert_eq!(is_valid, 1);
 
         unsafe { lsec_buffer_free(seed_handle) };
+    }
+
+    #[test]
+    fn test_multi_vault_c_abi() {
+        let payload = b"c-abi multi-slot secret";
+        let pass0 = b"primary-passphrase";
+        let pass1 = b"secondary-credential";
+
+        let mut out_bytes: *mut u8 = core::ptr::null_mut();
+        let mut out_len: usize = 0;
+
+        let status = unsafe {
+            lsec_multi_vault_create(
+                payload.as_ptr(),
+                payload.len(),
+                pass0.as_ptr(),
+                pass0.len(),
+                1,
+                &mut out_bytes,
+                &mut out_len,
+            )
+        };
+        assert_eq!(status, LSEC_OK);
+        assert!(!out_bytes.is_null());
+        assert!(out_len >= 367);
+
+        let mut active_slots = [0u8; 4];
+        let status = unsafe {
+            lsec_multi_vault_active_slots(out_bytes, out_len, active_slots.as_mut_ptr(), 4)
+        };
+        assert_eq!(status, LSEC_OK);
+        assert_eq!(active_slots, [1, 0, 0, 0]);
+
+        let mut slot_idx: usize = 0;
+        let status = unsafe {
+            lsec_multi_vault_add_slot(
+                out_bytes,
+                out_len,
+                pass0.as_ptr(),
+                pass0.len(),
+                pass1.as_ptr(),
+                pass1.len(),
+                2,
+                &mut slot_idx,
+            )
+        };
+        assert_eq!(status, LSEC_OK);
+        assert_eq!(slot_idx, 1);
+
+        let status = unsafe {
+            lsec_multi_vault_active_slots(out_bytes, out_len, active_slots.as_mut_ptr(), 4)
+        };
+        assert_eq!(status, LSEC_OK);
+        assert_eq!(active_slots, [1, 1, 0, 0]);
+
+        let mut unseal_handle: *mut LsecProtectedBuffer = core::ptr::null_mut();
+        let status = unsafe {
+            lsec_multi_vault_open(
+                out_bytes,
+                out_len,
+                pass1.as_ptr(),
+                pass1.len(),
+                &mut unseal_handle,
+            )
+        };
+        assert_eq!(status, LSEC_OK);
+        assert!(!unseal_handle.is_null());
+
+        let len = unsafe { lsec_buffer_len(unseal_handle) };
+        let ptr = unsafe { lsec_buffer_data(unseal_handle) };
+        let slice = unsafe { std::slice::from_raw_parts(ptr, len) };
+        assert_eq!(slice, payload);
+        unsafe {
+            lsec_buffer_free(unseal_handle);
+        }
+
+        let new_payload = b"updated payload data via sub-millisecond c-abi";
+        let mut updated_bytes: *mut u8 = core::ptr::null_mut();
+        let mut updated_len: usize = 0;
+
+        let status = unsafe {
+            lsec_multi_vault_update_payload(
+                out_bytes,
+                out_len,
+                pass0.as_ptr(),
+                pass0.len(),
+                new_payload.as_ptr(),
+                new_payload.len(),
+                &mut updated_bytes,
+                &mut updated_len,
+            )
+        };
+        assert_eq!(status, LSEC_OK);
+        assert!(!updated_bytes.is_null());
+
+        let mut unseal_updated: *mut LsecProtectedBuffer = core::ptr::null_mut();
+        let status = unsafe {
+            lsec_vault_unseal(
+                updated_bytes,
+                updated_len,
+                pass1.as_ptr(),
+                pass1.len(),
+                &mut unseal_updated,
+            )
+        };
+        assert_eq!(status, LSEC_OK);
+        let u_len = unsafe { lsec_buffer_len(unseal_updated) };
+        let u_ptr = unsafe { lsec_buffer_data(unseal_updated) };
+        let u_slice = unsafe { std::slice::from_raw_parts(u_ptr, u_len) };
+        assert_eq!(u_slice, new_payload);
+
+        unsafe {
+            lsec_buffer_free(unseal_updated);
+            lsec_vault_bytes_free(out_bytes, out_len);
+            lsec_vault_bytes_free(updated_bytes, updated_len);
+        }
     }
 
     #[test]
