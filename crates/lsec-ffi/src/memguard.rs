@@ -4,7 +4,8 @@ use std::slice;
 use lsec_core::memguard::{MemguardError, ProtectedBuffer};
 
 use crate::error::{
-    LSEC_ERR_ALLOC_FAILED, LSEC_ERR_LOCK_FAILED, LSEC_ERR_NULL_POINTER, LSEC_ERR_PANIC, LSEC_OK,
+    LSEC_ERR_ALLOC_FAILED, LSEC_ERR_INVALID_PARAM, LSEC_ERR_LOCK_FAILED, LSEC_ERR_NULL_POINTER,
+    LSEC_ERR_PANIC, LSEC_OK,
 };
 
 pub struct LsecProtectedBuffer(pub ProtectedBuffer);
@@ -41,6 +42,7 @@ pub unsafe extern "C" fn lsec_buffer_new(
                 LSEC_ERR_ALLOC_FAILED
             }
             Err(MemguardError::LockFailed(_)) => LSEC_ERR_LOCK_FAILED,
+            Err(MemguardError::LengthMismatch { .. }) => LSEC_ERR_INVALID_PARAM,
         }
     });
 
@@ -69,6 +71,7 @@ pub unsafe extern "C" fn lsec_buffer_zeroed(
                 LSEC_ERR_ALLOC_FAILED
             }
             Err(MemguardError::LockFailed(_)) => LSEC_ERR_LOCK_FAILED,
+            Err(MemguardError::LengthMismatch { .. }) => LSEC_ERR_INVALID_PARAM,
         }
     });
 
