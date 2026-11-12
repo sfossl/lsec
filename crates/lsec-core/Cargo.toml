@@ -25,7 +25,7 @@ sha2 = { workspace = true }
 libc = { version = "0.2", default-features = false }
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.59", default-features = false, features = ["Win32_System_Memory"] }
+windows-sys = { version = "0.59", default-features = false, features = ["Win32_System_Memory", "Win32_System_Diagnostics_Debug"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.2", default-features = false, features = ["custom"] }
