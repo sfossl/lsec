@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { init, version, Buffer, Vault, MultiSlotVault, TOTP } from './index.js';
+import { init, version, Buffer, Vault, MultiSlotVault, TOTP, Totp } from './index.js';
 
 await init();
 
@@ -8,6 +8,7 @@ const v = version();
 assert.strictEqual(v.major, 0);
 assert.strictEqual(v.minor, 2);
 assert.strictEqual(v.patch, 0);
+assert.strictEqual(Totp, TOTP);
 
 // 2. buffer lifecycle
 {

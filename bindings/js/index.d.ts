@@ -106,3 +106,5 @@ export class TOTP {
   ): boolean;
 }
 
+export { TOTP as Totp };
+

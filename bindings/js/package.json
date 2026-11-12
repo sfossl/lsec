@@ -11,6 +11,13 @@
       "import": "./index.js"
     }
   },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "lsec_wasm.wasm",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "test": "node test.mjs"
   },

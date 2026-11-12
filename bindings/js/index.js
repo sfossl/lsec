@@ -549,3 +549,5 @@ export function version() {
     patch: wasmExports.lsec_wasm_version_patch()
   };
 }
+
+export { TOTP as Totp };
