@@ -197,7 +197,8 @@ Python `ctypes` binding over the C-ABI. Byte arguments accept `SecureBuffer`, `b
 | `version` | `version() -> tuple[int, int, int]` | Native library version as `(major, minor, patch)`. |
 
 Search order: `LSEC_LIB_PATH` (file or directory, exclusive when set), bundled `lsec/_lib/`, cargo
-`$CARGO_TARGET_DIR` / `target/release` / `target/debug`, then the system loader.
+`$CARGO_TARGET_DIR` / `target/release` / `target/debug` (only when running from the lsec source
+checkout), then the system loader.
 
 ### `SecureBuffer`
 

@@ -52,6 +52,67 @@ class CandidatePathTests(unittest.TestCase):
                 paths = _loader.candidate_paths(["x.lib"])
         self.assertIn(Path(tmp) / "release" / "x.lib", paths)
 
+    def test_relative_cargo_target_dir_uses_working_directory(self):
+        with mock.patch.dict(os.environ, {"CARGO_TARGET_DIR": "rel-target"}):
+            os.environ.pop(_loader.ENV_LIB_PATH, None)
+            paths = _loader.candidate_paths(["x.lib"])
+        self.assertIn(Path(os.path.abspath("rel-target")) / "release" / "x.lib", paths)
+
+
+class SourceWorkspaceRootTests(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = Path(tmp.name).resolve()
+
+    def _package_dir(self, *parts):
+        package_dir = self.tmp.joinpath(*parts)
+        package_dir.mkdir(parents=True)
+        return package_dir
+
+    def _workspace(self, root, members='["crates/*"]', ffi_crate=True):
+        (root / "Cargo.toml").write_text(f"[workspace]\nmembers = {members}\n", encoding="utf-8")
+        if ffi_crate:
+            crate = root / "crates" / "lsec-ffi"
+            crate.mkdir(parents=True)
+            (crate / "Cargo.toml").write_text('[package]\nname = "lsec-ffi"\n', encoding="utf-8")
+
+    def test_lsec_checkout_is_accepted(self):
+        self._workspace(self.tmp)
+        package_dir = self._package_dir("bindings", "python", "lsec")
+        self.assertEqual(_loader._source_workspace_root(package_dir), self.tmp)
+
+    def test_checkout_layout_is_case_insensitive(self):
+        self._workspace(self.tmp)
+        package_dir = self._package_dir("Bindings", "Python", "lsec")
+        self.assertEqual(_loader._source_workspace_root(package_dir), self.tmp)
+
+    def test_foreign_workspace_in_checkout_position_is_rejected(self):
+        self._workspace(self.tmp, members='["crates/other"]', ffi_crate=False)
+        package_dir = self._package_dir("bindings", "python", "lsec")
+        self.assertIsNone(_loader._source_workspace_root(package_dir))
+
+    def test_non_workspace_manifest_is_rejected(self):
+        self._workspace(self.tmp)
+        (self.tmp / "Cargo.toml").write_text('[package]\nname = "x"\n', encoding="utf-8")
+        package_dir = self._package_dir("bindings", "python", "lsec")
+        self.assertIsNone(_loader._source_workspace_root(package_dir))
+
+    def test_missing_manifest_is_rejected(self):
+        package_dir = self._package_dir("bindings", "python", "lsec")
+        self.assertIsNone(_loader._source_workspace_root(package_dir))
+
+    def test_installed_package_does_not_walk_up_to_any_workspace(self):
+        # even an lsec-looking workspace above site-packages must not be used
+        self._workspace(self.tmp)
+        package_dir = self._package_dir("venv", "Lib", "site-packages", "lsec")
+        self.assertIsNone(_loader._source_workspace_root(package_dir))
+        with mock.patch.object(_loader, "__file__", str(package_dir / "_loader.py")):
+            with mock.patch.dict(os.environ, {"CARGO_TARGET_DIR": str(self.tmp / "out")}):
+                os.environ.pop(_loader.ENV_LIB_PATH, None)
+                paths = _loader.candidate_paths(["x.lib"])
+        self.assertEqual(paths, [package_dir / "_lib" / "x.lib"])
+
 
 class FindAndLoadTests(unittest.TestCase):
     def test_bogus_override_raises_with_tried_paths(self):

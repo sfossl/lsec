@@ -21,7 +21,7 @@ The first match wins:
 | :--- | :--- | :--- |
 | 1 | `LSEC_LIB_PATH` | Path to the library file or to a directory containing it. When set, it is the only location searched. |
 | 2 | `lsec/_lib/` | Copy bundled inside the package (for wheels). |
-| 3 | `$CARGO_TARGET_DIR`, `target/release`, `target/debug` | Searched in the enclosing cargo workspace, for in-tree and editable installs. |
+| 3 | `$CARGO_TARGET_DIR`, `target/release`, `target/debug` | Searched only when the package runs from the lsec checkout itself (`<repo>/bindings/python/lsec`: in-tree use or the default `pip install -e`). A relative `CARGO_TARGET_DIR` is taken from the working directory, as cargo does. Other layouts, such as a venv inside the repo or a strict editable install, need `LSEC_LIB_PATH`. |
 | 4 | System loader | `ctypes.util.find_library("lsec_ffi")`, then `PATH` / `LD_LIBRARY_PATH` / `DYLD_LIBRARY_PATH`. |
 
 File names: `lsec_ffi.dll` / `liblsec_ffi.dll` (Windows), `liblsec_ffi.so` (Linux), `liblsec_ffi.dylib` (macOS).

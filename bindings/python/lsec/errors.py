@@ -36,7 +36,8 @@ class LibraryNotFoundError(LsecError, OSError):
             lines = "\n  ".join(self.tried)
             message = (
                 f"{self.default_message}; tried:\n  {lines}\n"
-                "build it with `cargo build -p lsec-ffi` or set LSEC_LIB_PATH"
+                "build it with `cargo build -p lsec-ffi` and run from the source checkout, "
+                "or set LSEC_LIB_PATH to the built library or its directory"
             )
         super().__init__(message)
 

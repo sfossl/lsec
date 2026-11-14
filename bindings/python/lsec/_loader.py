@@ -12,6 +12,7 @@ from .errors import LibraryNotFoundError
 
 ENV_LIB_PATH = "LSEC_LIB_PATH"
 LIB_STEM = "lsec_ffi"
+FFI_CRATE_DIR = ("crates", "lsec-ffi")
 
 _lock = threading.Lock()
 _lib: Optional[ctypes.CDLL] = None
@@ -33,16 +34,29 @@ def _files_in(directory: Path, names: Sequence[str]) -> List[Path]:
     return [Path(directory) / name for name in names]
 
 
-def _find_workspace_root(start: Path) -> Optional[Path]:
-    for parent in [start, *start.parents]:
-        manifest = parent / "Cargo.toml"
-        if manifest.is_file():
-            try:
-                if "[workspace]" in manifest.read_text(encoding="utf-8"):
-                    return parent
-            except OSError:
-                continue
-    return None
+def _source_workspace_root(package_dir: Path) -> Optional[Path]:
+    """The lsec repo root when running from a source checkout, else None.
+
+    Only the fixed checkout layout (<root>/bindings/python/lsec) is accepted, and the
+    root must be lsec's own cargo workspace with the lsec-ffi crate in it. Walking
+    further up would let any unrelated workspace above an installed package supply
+    the native library. Other layouts (strict editable installs, a venv inside the
+    repo) should point LSEC_LIB_PATH at the build output.
+    """
+    # case-insensitive so a checkout reached via e.g. .../Bindings/Python still counts
+    if (
+        package_dir.parent.name.lower() != "python"
+        or package_dir.parent.parent.name.lower() != "bindings"
+    ):
+        return None
+    root = package_dir.parents[2]
+    try:
+        is_workspace = "[workspace]" in (root / "Cargo.toml").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    if not is_workspace or not root.joinpath(*FFI_CRATE_DIR, "Cargo.toml").is_file():
+        return None
+    return root
 
 
 def candidate_paths(names: Optional[Sequence[str]] = None) -> List[Path]:
@@ -59,14 +73,13 @@ def candidate_paths(names: Optional[Sequence[str]] = None) -> List[Path]:
     package_dir = Path(__file__).resolve().parent
     candidates = _files_in(package_dir / "_lib", names)
 
-    root = _find_workspace_root(package_dir)
+    root = _source_workspace_root(package_dir)
     if root is not None:
         target_dirs = []
         cargo_target = os.environ.get("CARGO_TARGET_DIR")
         if cargo_target:
-            target_dir = Path(cargo_target)
-            if not target_dir.is_absolute():
-                target_dir = root / target_dir
+            # cargo resolves a relative CARGO_TARGET_DIR against the working directory
+            target_dir = Path(os.path.abspath(cargo_target))
             target_dirs.append(target_dir)
         target_dirs.append(root / "target")
         for target_dir in target_dirs:
