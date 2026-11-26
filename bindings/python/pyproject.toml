@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lsec"
+version = "0.1.0"
+description = "Python ctypes binding for lsec: page-locked secret buffers, envelope vault encryption and RFC 6238 TOTP."
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Akash Sharma (Shwetambara FOSS Labs)" }]
+keywords = ["security", "vault", "encryption", "totp", "mlock", "argon2", "chacha20poly1305"]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Topic :: Security :: Cryptography",
+]
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/sfossl/lsec"
+
+[tool.setuptools]
+packages = ["lsec"]
+
+[tool.setuptools.package-data]
+lsec = ["py.typed", "_lib/*"]

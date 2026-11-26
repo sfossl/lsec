@@ -46,6 +46,7 @@ npm install @sfossl/lsec
 | `crates/lsec-wasm` | WebAssembly interface for browsers and PWAs | `lsec-core` |
 | `bindings/go` | Idiomatic Go client with garbage-collector-safe handles | `liblsec_ffi` |
 | `bindings/js` | ESM TypeScript and JavaScript SDK | `lsec_wasm.wasm` |
+| `bindings/python` | Zero-dependency Python package via C-ABI (`ctypes`) | `liblsec_ffi` |
 
 ## Capabilities
 

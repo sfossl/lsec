@@ -317,3 +317,76 @@ Zero-dependency JavaScript and TypeScript SDK for Node.js, browsers and offline 
 | `TOTP.decodeBase32` | `static decodeBase32(base32Str: string): Buffer` | Decodes Base32 secret into protected buffer. |
 | `TOTP.generate` | `static generate(secret: BinarySource, options?: TOTPGenerateOptions): string` | Generates TOTP passcode string. |
 | `TOTP.verify` | `static verify(secret: BinarySource, candidateCode: string, options?: TOTPVerifyOptions): boolean` | Verifies candidate passcode with drift tolerance. |
+
+## Module: `bindings/python` (`lsec` package)
+
+Python `ctypes` binding over the C-ABI. Byte arguments accept `SecureBuffer`, `bytes`, `bytearray`,
+`memoryview` or `str` (UTF-8). A `SecureBuffer` argument is read in place without a Python copy.
+
+### Library Loading
+
+| Function | Signature | Description |
+| :--- | :--- | :--- |
+| `load_library` | `load_library() -> ctypes.CDLL` | Locates and loads `lsec_ffi` once per process. |
+| `library_path` | `library_path() -> str` | Path of the loaded shared library. |
+| `version` | `version() -> tuple[int, int, int]` | Native library version as `(major, minor, patch)`. |
+
+Search order: `LSEC_LIB_PATH` (file or directory, exclusive when set), bundled `lsec/_lib/`, cargo
+`$CARGO_TARGET_DIR` / `target/release` / `target/debug` (only when running from the lsec source
+checkout), then the system loader.
+
+### `SecureBuffer`
+
+| Member | Signature | Description |
+| :--- | :--- | :--- |
+| `from_bytes` | `SecureBuffer.from_bytes(data, *, wipe_source=False) -> SecureBuffer` | Copies data into locked memory; optionally zeroes a mutable source. |
+| `zeroed` | `SecureBuffer.zeroed(length: int) -> SecureBuffer` | Allocates a zero-filled locked buffer. |
+| `view` | `view() -> memoryview` | Zero-copy writable view onto locked memory. |
+| `write` | `write(data, offset: int = 0) -> None` | Copies data into the buffer at an offset. |
+| `to_bytes` | `to_bytes() -> bytes` | Unlocked, unwipeable Python copy of the contents. |
+| `wipe` | `wipe() -> None` | Zeroizes contents in place. |
+| `free` / `close` | `free() -> None` | Zeroizes, unlocks and releases; waits for in-flight native calls and defers release while views are alive. |
+| `closed` | `closed: bool` | Whether the buffer has been freed. |
+
+Also supports `len()` and the context manager protocol (frees on exit).
+
+### Vault Storage
+
+| Function | Signature | Description |
+| :--- | :--- | :--- |
+| `seal` | `seal(plaintext, passphrase, cipher=CipherSuite.CHACHA20_POLY1305) -> bytes` | Encrypts into a binary vault envelope. |
+| `unseal` | `unseal(vault_bytes, passphrase) -> SecureBuffer` | Decrypts an envelope into locked memory. |
+| `seal_to_file` | `seal_to_file(path, plaintext, passphrase, cipher=...) -> None` | Atomically writes a sealed vault file. Paths containing NUL are rejected. |
+| `unseal_from_file` | `unseal_from_file(path, passphrase) -> SecureBuffer` | Reads and decrypts a vault file. |
+
+`CipherSuite`: `CHACHA20_POLY1305 = 1`, `AES256_GCM = 2`.
+
+### Time-Based Authentication (`lsec.totp`)
+
+| Function | Signature | Description |
+| :--- | :--- | :--- |
+| `decode_base32` | `decode_base32(encoded: str \| bytes) -> SecureBuffer` | Decodes a Base32 seed into locked memory. |
+| `generate` | `generate(secret, *, timestamp=None, step=30, digits=6, algorithm=TotpAlgorithm.SHA1) -> str` | Generates the code for `timestamp` (default: now) from raw seed bytes. |
+| `verify` | `verify(secret, code, *, timestamp=None, step=30, digits=6, drift=1, algorithm=...) -> bool` | Constant-time check with drift tolerance. `digits` is never inferred from `code`. |
+| `Totp` | `Totp(secret: str \| SecureBuffer, *, step=30, digits=6, drift=1, algorithm=...)` | Seed held in locked memory; methods `now()`, `at(ts)`, `verify(code, timestamp=None)`, `close()`. |
+
+`TotpAlgorithm`: `SHA1 = 0`, `SHA256 = 1`, `SHA512 = 2`. `digits` outside `6..8` raises `TotpError`.
+
+### Exceptions
+
+All derive from `LsecError` and carry the C return code in `.code`.
+
+| Exception | Code | Also Subclasses |
+| :--- | :--- | :--- |
+| `NullPointerError` | `-1` | |
+| `BufferTooSmallError` | `-2` | |
+| `InvalidParameterError` | `-3` | `ValueError` |
+| `AllocationError` | `-4` | `MemoryError` |
+| `MemoryLockError` | `-5` | |
+| `CryptoError` | `-6` | |
+| `VaultCorruptError` | `-7` | |
+| `VaultIOError` | `-8` | `OSError` |
+| `TotpError` | `-9` | |
+| `PanicError` | `-10` | |
+| `UnknownError` | any other | |
+| `LibraryNotFoundError` | none | `OSError` |
