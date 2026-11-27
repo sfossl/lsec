@@ -1,55 +1,56 @@
-# lsec for Python
+## Overview
 
-Python binding for `lsec` over the `lsec_ffi` C-ABI, written with the standard library's `ctypes`.
-No C compiler, no build step and no third-party dependencies are required, only the prebuilt
-`lsec_ffi` shared library.
+`bindings/python` provides a zero-dependency Python binding for the `lsec` local security engine over the `lsec_ffi` C-ABI using the standard library `ctypes` module. It exposes page-locked memory buffers, process dump suppression, envelope and multi-slot vault encryption, and RFC 6238 TOTP verification without a C compiler or third-party packages.
 
 ## Installation
 
-Build the native library and install the package:
+Build the native shared library and install the Python package:
 
 ```bash
-cargo build -p lsec-ffi --release
+cargo build --release -p lsec-ffi
 pip install -e bindings/python
 ```
 
-### Library discovery
+## Prerequisites
 
-The first match wins:
+The package loads `liblsec_ffi` at runtime (`liblsec_ffi.so` on Linux, `liblsec_ffi.dylib` on macOS, `lsec_ffi.dll` or `liblsec_ffi.dll` on Windows).
+
+### Library Discovery
+
+The loader selects the first match in order:
 
 | Order | Location | Notes |
 | :--- | :--- | :--- |
-| 1 | `LSEC_LIB_PATH` | Path to the library file or to a directory containing it. When set, it is the only location searched. |
-| 2 | `lsec/_lib/` | Copy bundled inside the package (for wheels). |
-| 3 | `$CARGO_TARGET_DIR`, `target/release`, `target/debug` | Searched only when the package runs from the lsec checkout itself (`<repo>/bindings/python/lsec`: in-tree use or the default `pip install -e`). A relative `CARGO_TARGET_DIR` is taken from the working directory, as cargo does. Other layouts, such as a venv inside the repo or a strict editable install, need `LSEC_LIB_PATH`. |
-| 4 | System loader | `ctypes.util.find_library("lsec_ffi")`, then `PATH` / `LD_LIBRARY_PATH` / `DYLD_LIBRARY_PATH`. |
+| 1 | `LSEC_LIB_PATH` | Path to the library file or its parent directory. Exclusive when set. |
+| 2 | `lsec/_lib/` | Shared library bundled inside a wheel distribution. |
+| 3 | `$CARGO_TARGET_DIR`, `target/release`, `target/debug` | Searched only when running from the repository checkout (`bindings/python/lsec`). Relative `CARGO_TARGET_DIR` resolves from the working directory. |
+| 4 | System loader | `ctypes.util.find_library("lsec_ffi")`, then `PATH`, `LD_LIBRARY_PATH`, or `DYLD_LIBRARY_PATH`. |
 
-File names: `lsec_ffi.dll` / `liblsec_ffi.dll` (Windows), `liblsec_ffi.so` (Linux), `liblsec_ffi.dylib` (macOS).
-If nothing loads, `LibraryNotFoundError` lists every path tried. `lsec.library_path()` reports the copy in use.
+If no library loads, `LibraryNotFoundError` lists every path tried. Call `lsec.library_path()` to inspect the active library path.
+
+### Environment Variables
+
+| Variable | Purpose | Scope |
+| :--- | :--- | :--- |
+| `LSEC_LIB_PATH` | Override shared library file or directory path | Runtime and tests |
+| `CARGO_TARGET_DIR` | Custom Cargo target directory in checkout mode | Runtime and tests |
+| `LSEC_REQUIRE_LIB` | Set to `1` to fail instead of skipping tests when library is missing | Test suite |
 
 ## Usage
 
-### Protected buffers
+### Protected Buffers
 
 ```python
 from lsec import SecureBuffer
 
 key = bytearray(b"master-key-material")
-with SecureBuffer.from_bytes(key, wipe_source=True) as buf:  # key is zeroed after the copy
-    view = buf.view()        # zero-copy memoryview onto locked memory
-    buf.wipe()               # zeroize in place
-# freed: zeroized, unlocked and released
+with SecureBuffer.from_bytes(key, wipe_source=True) as buf:
+    with buf.view() as view:
+        length = len(view)
+    buf.wipe()
 ```
 
-If views (or slices of them) are still alive when the buffer is freed, the memory is wiped immediately
-and released once the last view is dropped, so a stale view reads zeros, never freed memory. Use
-`with buf.view() as v:` to drop views promptly. `free()` also waits for native calls on the buffer
-running in other threads.
-
-`to_bytes()` returns an ordinary Python copy that cannot be wiped. Prefer `view()`, or pass the
-`SecureBuffer` straight into vault and TOTP calls, which read it in place.
-
-### Vault encryption
+### Vault Encryption
 
 ```python
 import lsec
@@ -57,14 +58,30 @@ from lsec import CipherSuite
 
 blob = lsec.seal(b"db-password", b"passphrase", CipherSuite.AES256_GCM)
 with lsec.unseal(blob, b"passphrase") as secret:
-    use(secret.view())
+    with secret.view() as view:
+        length = len(view)
 
 lsec.seal_to_file("app.vault", b"db-password", b"passphrase")
 with lsec.unseal_from_file("app.vault", b"passphrase") as secret:
-    ...
+    data = secret.to_bytes()
 ```
 
-### TOTP (RFC 6238)
+### Multi-Slot Vault and Process Hardening
+
+```python
+import lsec
+from lsec import MultiSlotVault
+
+lsec.harden_process()
+
+container = bytearray(MultiSlotVault.create(b"payload", b"primary-pass"))
+slot = MultiSlotVault.add_slot(container, b"primary-pass", b"recovery-pass")  # container must be bytearray
+with MultiSlotVault.open(container, b"recovery-pass") as secret:
+    length = len(secret)
+MultiSlotVault.remove_slot(container, b"primary-pass", slot)  # container must be bytearray
+```
+
+### TOTP
 
 ```python
 from lsec import Totp, TotpAlgorithm, totp
@@ -73,35 +90,37 @@ with Totp("JBSWY3DPEHPK3PXP", digits=6, drift=1) as otp:
     code = otp.now()
     assert otp.verify(code)
 
-seed = totp.decode_base32("JBSWY3DPEHPK3PXP")       # SecureBuffer
-code = totp.generate(seed, timestamp=1234567890, algorithm=TotpAlgorithm.SHA256)
-ok = totp.verify(seed, code, timestamp=1234567890, drift=1, algorithm=TotpAlgorithm.SHA256)
+with totp.decode_base32("JBSWY3DPEHPK3PXP") as seed:
+    code = totp.generate(seed, timestamp=1234567890, algorithm=TotpAlgorithm.SHA256)
+    ok = totp.verify(seed, code, timestamp=1234567890, drift=1, algorithm=TotpAlgorithm.SHA256)
 ```
 
-`digits` (default 6) must be 6-8 and is never inferred from the submitted code, so a shorter guess
-cannot weaken an 8-digit check. `verify` returns `False` for a wrong code, including one of the wrong
-length. Plain `bytes` passed to `generate`/`verify` are the raw seed. `Totp` takes a base32 `str`, or a
-`SecureBuffer` holding the raw seed.
+`digits` (default `6`) must be between `6` and `8` and is never inferred from the submitted code. `verify` returns `False` for any non-matching code, including wrong-length inputs. Raw `bytes` passed to `generate` or `verify` are treated as the raw seed; `Totp` accepts a Base32 `str` or a `SecureBuffer`.
+
+## Memory Management
+
+* **Context managers**: Use `with` blocks on `SecureBuffer` and `Totp` instances to zeroise, unlock, and release native memory deterministically.
+* **Zero-copy views**: `buf.view()` returns a writable `memoryview` onto locked memory. If views or in-flight native calls are still active when `free()` or `close()` runs, the memory is zeroised immediately and unmapped once the last reference drops.
+* **Plain copies**: `to_bytes()` allocates an unlocked Python `bytes` object that cannot be wiped. Prefer `view()` or pass `SecureBuffer` directly into vault and TOTP functions.
 
 ## Errors
 
-Every negative status code from the C-ABI is raised as a subclass of `lsec.LsecError`, which carries `.code`:
+Negative C-ABI status codes map to subclasses of `lsec.LsecError`, which exposes `.code`:
 
-| Code | Exception | Also a |
-| :--- | :--- | :--- |
-| -1 | `NullPointerError` | |
-| -2 | `BufferTooSmallError` | |
-| -3 | `InvalidParameterError` | `ValueError` |
-| -4 | `AllocationError` | `MemoryError` |
-| -5 | `MemoryLockError` | |
-| -6 | `CryptoError` (wrong passphrase, tampered vault) | |
-| -7 | `VaultCorruptError` | |
-| -8 | `VaultIOError` | `OSError` |
-| -9 | `TotpError` | |
-| -10 | `PanicError` | |
-| other | `UnknownError` | |
-
-`LibraryNotFoundError` (also an `OSError`) is raised when the native library cannot be loaded.
+| Code | Exception | Base Class | Notes |
+| :--- | :--- | :--- | :--- |
+| `-1` | `NullPointerError` | `LsecError` | Null pointer passed to native call |
+| `-2` | `BufferTooSmallError` | `LsecError` | Destination buffer too small |
+| `-3` | `InvalidParameterError` | `LsecError`, `ValueError` | Invalid argument or out-of-range value |
+| `-4` | `AllocationError` | `LsecError`, `MemoryError` | Memory allocation failure |
+| `-5` | `MemoryLockError` | `LsecError` | OS memory lock failure (`mlock`/`VirtualLock`) |
+| `-6` | `CryptoError` | `LsecError` | Authentication failure or wrong passphrase |
+| `-7` | `VaultCorruptError` | `LsecError` | Malformed vault header or container |
+| `-8` | `VaultIOError` | `LsecError`, `OSError` | Filesystem read or write failure |
+| `-9` | `TotpError` | `LsecError` | Invalid Base32 seed or TOTP parameters |
+| `-10` | `PanicError` | `LsecError` | Rust panic caught at FFI boundary |
+| Other | `UnknownError` | `LsecError` | Unrecognised native status code |
+| None | `LibraryNotFoundError` | `OSError` | Native `liblsec_ffi` binary not found |
 
 ## Tests
 
@@ -110,5 +129,13 @@ cd bindings/python
 python -m unittest discover -s tests -t .
 ```
 
-Tests that need the native library are skipped when it cannot be found. Set `LSEC_REQUIRE_LIB=1` (for
-example in CI) to make a missing library a hard failure. The suite also runs under `pytest`.
+Tests requiring the native library are skipped when it is absent unless `LSEC_REQUIRE_LIB=1` is set. The suite also runs under `pytest`.
+
+## Connected Topics
+
+| Topic | Relationship | Context |
+| :--- | :--- | :--- |
+| [C-ABI Shared Library](https://github.com/sfossl/lsec/tree/main/crates/lsec-ffi) | Native Dependency | C header and shared library compiled from Rust |
+| [Python Integration Guide](https://github.com/sfossl/lsec/blob/main/.docs/python-integration.md) | Dedicated Documentation | Library discovery, view deferral and buffer safety |
+| [API Reference](https://github.com/sfossl/lsec/blob/main/.docs/api-reference.md) | Function Index | Full API specification across all runtimes |
+| [Repository Overview](https://github.com/sfossl/lsec) | Workspace Root | Architecture and multi-target ecosystem matrix |
