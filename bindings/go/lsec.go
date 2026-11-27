@@ -10,7 +10,9 @@ import "C"
 
 import (
 	"errors"
+	"math"
 	"runtime"
+	"sync"
 	"unsafe"
 )
 
@@ -72,7 +74,28 @@ func mapStatus(status C.int32_t) error {
 	}
 }
 
+var emptyByte C.uint8_t
+
+func slicePtr(b []byte) (*C.uint8_t, C.size_t) {
+	if len(b) == 0 {
+		return &emptyByte, 0
+	}
+	return (*C.uint8_t)(unsafe.Pointer(&b[0])), C.size_t(len(b))
+}
+
+func takeVaultBytes(ptr *C.uint8_t, length C.size_t) ([]byte, error) {
+	defer C.lsec_vault_bytes_free(ptr, length)
+	if length > math.MaxInt32 {
+		return nil, ErrAllocFailed
+	}
+	if length == 0 || ptr == nil {
+		return []byte{}, nil
+	}
+	return C.GoBytes(unsafe.Pointer(ptr), C.int(length)), nil
+}
+
 type Buffer struct {
+	mu  sync.Mutex
 	ptr *C.lsec_protected_buffer_t
 }
 
@@ -89,12 +112,9 @@ func newBufferFromHandle(handle *C.lsec_protected_buffer_t) *Buffer {
 
 func NewBuffer(data []byte) (*Buffer, error) {
 	var handle *C.lsec_protected_buffer_t
-	var dataPtr *C.uint8_t
-	if len(data) > 0 {
-		dataPtr = (*C.uint8_t)(unsafe.Pointer(&data[0]))
-	}
+	dataPtr, dataLen := slicePtr(data)
 
-	status := C.lsec_buffer_new(dataPtr, C.size_t(len(data)), &handle)
+	status := C.lsec_buffer_new(dataPtr, dataLen, &handle)
 	if err := mapStatus(status); err != nil {
 		return nil, err
 	}
@@ -117,7 +137,12 @@ func NewZeroedBuffer(length int) (*Buffer, error) {
 }
 
 func (b *Buffer) Len() int {
-	if b == nil || b.ptr == nil {
+	if b == nil {
+		return 0
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.ptr == nil {
 		return 0
 	}
 	defer runtime.KeepAlive(b)
@@ -125,11 +150,16 @@ func (b *Buffer) Len() int {
 }
 
 func (b *Buffer) Bytes() []byte {
-	if b == nil || b.ptr == nil {
+	if b == nil {
+		return nil
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.ptr == nil {
 		return nil
 	}
 	defer runtime.KeepAlive(b)
-	length := b.Len()
+	length := int(C.lsec_buffer_len(b.ptr))
 	if length == 0 {
 		return []byte{}
 	}
@@ -140,8 +170,42 @@ func (b *Buffer) Bytes() []byte {
 	return C.GoBytes(unsafe.Pointer(raw), C.int(length))
 }
 
+func (b *Buffer) Write(data []byte, offset int) error {
+	if b == nil {
+		return ErrNullPointer
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.ptr == nil {
+		return ErrNullPointer
+	}
+	defer runtime.KeepAlive(b)
+	if offset < 0 {
+		return ErrInvalidParam
+	}
+	length := int(C.lsec_buffer_len(b.ptr))
+	if offset > length || len(data) > length-offset {
+		return ErrBufferTooSmall
+	}
+	if len(data) == 0 {
+		return nil
+	}
+	raw := C.lsec_buffer_data_mut(b.ptr)
+	if raw == nil {
+		return ErrNullPointer
+	}
+	dst := unsafe.Slice((*byte)(unsafe.Pointer(raw)), length)
+	copy(dst[offset:], data)
+	return nil
+}
+
 func (b *Buffer) Wipe() error {
-	if b == nil || b.ptr == nil {
+	if b == nil {
+		return nil
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.ptr == nil {
 		return nil
 	}
 	defer runtime.KeepAlive(b)
@@ -149,7 +213,12 @@ func (b *Buffer) Wipe() error {
 }
 
 func (b *Buffer) Free() {
-	if b != nil && b.ptr != nil {
+	if b == nil {
+		return
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.ptr != nil {
 		runtime.SetFinalizer(b, nil)
 		C.lsec_buffer_free(b.ptr)
 		b.ptr = nil
@@ -164,46 +233,36 @@ func Version() (major, minor, patch uint32) {
 }
 
 func Seal(plaintext, passphrase []byte, cipher CipherSuite) ([]byte, error) {
-	var plainPtr, passPtr *C.uint8_t
-	if len(plaintext) > 0 {
-		plainPtr = (*C.uint8_t)(unsafe.Pointer(&plaintext[0]))
-	}
-	if len(passphrase) > 0 {
-		passPtr = (*C.uint8_t)(unsafe.Pointer(&passphrase[0]))
-	}
+	plainPtr, plainLen := slicePtr(plaintext)
+	passPtr, passLen := slicePtr(passphrase)
 
 	var outBytes *C.uint8_t
 	var outLen C.size_t
 
 	status := C.lsec_vault_seal(
-		plainPtr, C.size_t(len(plaintext)),
-		passPtr, C.size_t(len(passphrase)),
+		plainPtr, plainLen,
+		passPtr, passLen,
 		C.uint8_t(cipher),
 		&outBytes, &outLen,
 	)
 	if err := mapStatus(status); err != nil {
 		return nil, err
 	}
-	defer C.lsec_vault_bytes_free(outBytes, outLen)
 
-	return C.GoBytes(unsafe.Pointer(outBytes), C.int(outLen)), nil
+	return takeVaultBytes(outBytes, outLen)
 }
 
 func Unseal(vaultBytes, passphrase []byte) (*Buffer, error) {
 	if len(vaultBytes) == 0 {
 		return nil, ErrVaultCorrupt
 	}
-	vaultPtr := (*C.uint8_t)(unsafe.Pointer(&vaultBytes[0]))
-
-	var passPtr *C.uint8_t
-	if len(passphrase) > 0 {
-		passPtr = (*C.uint8_t)(unsafe.Pointer(&passphrase[0]))
-	}
+	vaultPtr, vaultLen := slicePtr(vaultBytes)
+	passPtr, passLen := slicePtr(passphrase)
 
 	var outHandle *C.lsec_protected_buffer_t
 	status := C.lsec_vault_unseal(
-		vaultPtr, C.size_t(len(vaultBytes)),
-		passPtr, C.size_t(len(passphrase)),
+		vaultPtr, vaultLen,
+		passPtr, passLen,
 		&outHandle,
 	)
 	if err := mapStatus(status); err != nil {
@@ -217,18 +276,13 @@ func SealToFile(path string, plaintext, passphrase []byte, cipher CipherSuite) e
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
 
-	var plainPtr, passPtr *C.uint8_t
-	if len(plaintext) > 0 {
-		plainPtr = (*C.uint8_t)(unsafe.Pointer(&plaintext[0]))
-	}
-	if len(passphrase) > 0 {
-		passPtr = (*C.uint8_t)(unsafe.Pointer(&passphrase[0]))
-	}
+	plainPtr, plainLen := slicePtr(plaintext)
+	passPtr, passLen := slicePtr(passphrase)
 
 	status := C.lsec_vault_seal_to_file(
 		cPath,
-		plainPtr, C.size_t(len(plaintext)),
-		passPtr, C.size_t(len(passphrase)),
+		plainPtr, plainLen,
+		passPtr, passLen,
 		C.uint8_t(cipher),
 	)
 	return mapStatus(status)
@@ -238,15 +292,12 @@ func UnsealFromFile(path string, passphrase []byte) (*Buffer, error) {
 	cPath := C.CString(path)
 	defer C.free(unsafe.Pointer(cPath))
 
-	var passPtr *C.uint8_t
-	if len(passphrase) > 0 {
-		passPtr = (*C.uint8_t)(unsafe.Pointer(&passphrase[0]))
-	}
+	passPtr, passLen := slicePtr(passphrase)
 
 	var outHandle *C.lsec_protected_buffer_t
 	status := C.lsec_vault_unseal_from_file(
 		cPath,
-		passPtr, C.size_t(len(passphrase)),
+		passPtr, passLen,
 		&outHandle,
 	)
 	if err := mapStatus(status); err != nil {
@@ -325,29 +376,23 @@ func ProcessHarden() error {
 }
 
 func MultiVaultCreate(payload, passphrase []byte, cipher CipherSuite) ([]byte, error) {
-	var plainPtr, passPtr *C.uint8_t
-	if len(payload) > 0 {
-		plainPtr = (*C.uint8_t)(unsafe.Pointer(&payload[0]))
-	}
-	if len(passphrase) > 0 {
-		passPtr = (*C.uint8_t)(unsafe.Pointer(&passphrase[0]))
-	}
+	plainPtr, plainLen := slicePtr(payload)
+	passPtr, passLen := slicePtr(passphrase)
 
 	var outBytes *C.uint8_t
 	var outLen C.size_t
 
 	status := C.lsec_multi_vault_create(
-		plainPtr, C.size_t(len(payload)),
-		passPtr, C.size_t(len(passphrase)),
+		plainPtr, plainLen,
+		passPtr, passLen,
 		C.uint8_t(cipher),
 		&outBytes, &outLen,
 	)
 	if err := mapStatus(status); err != nil {
 		return nil, err
 	}
-	defer C.lsec_vault_bytes_free(outBytes, outLen)
 
-	return C.GoBytes(unsafe.Pointer(outBytes), C.int(outLen)), nil
+	return takeVaultBytes(outBytes, outLen)
 }
 
 func MultiVaultOpen(container, passphrase []byte) (*Buffer, error) {
@@ -358,21 +403,15 @@ func MultiVaultAddSlot(container []byte, existingPassphrase, newPassphrase []byt
 	if len(container) == 0 {
 		return -1, ErrVaultCorrupt
 	}
-	cPtr := (*C.uint8_t)(unsafe.Pointer(&container[0]))
-
-	var existPtr, newPtr *C.uint8_t
-	if len(existingPassphrase) > 0 {
-		existPtr = (*C.uint8_t)(unsafe.Pointer(&existingPassphrase[0]))
-	}
-	if len(newPassphrase) > 0 {
-		newPtr = (*C.uint8_t)(unsafe.Pointer(&newPassphrase[0]))
-	}
+	cPtr, cLen := slicePtr(container)
+	existPtr, existLen := slicePtr(existingPassphrase)
+	newPtr, newLen := slicePtr(newPassphrase)
 
 	var slotIndex C.size_t
 	status := C.lsec_multi_vault_add_slot(
-		cPtr, C.size_t(len(container)),
-		existPtr, C.size_t(len(existingPassphrase)),
-		newPtr, C.size_t(len(newPassphrase)),
+		cPtr, cLen,
+		existPtr, existLen,
+		newPtr, newLen,
 		C.uint8_t(cipher),
 		&slotIndex,
 	)
@@ -384,19 +423,18 @@ func MultiVaultAddSlot(container []byte, existingPassphrase, newPassphrase []byt
 }
 
 func MultiVaultRemoveSlot(container []byte, existingPassphrase []byte, slotIndex int) error {
+	if slotIndex < 0 {
+		return ErrInvalidParam
+	}
 	if len(container) == 0 {
 		return ErrVaultCorrupt
 	}
-	cPtr := (*C.uint8_t)(unsafe.Pointer(&container[0]))
-
-	var existPtr *C.uint8_t
-	if len(existingPassphrase) > 0 {
-		existPtr = (*C.uint8_t)(unsafe.Pointer(&existingPassphrase[0]))
-	}
+	cPtr, cLen := slicePtr(container)
+	existPtr, existLen := slicePtr(existingPassphrase)
 
 	status := C.lsec_multi_vault_remove_slot(
-		cPtr, C.size_t(len(container)),
-		existPtr, C.size_t(len(existingPassphrase)),
+		cPtr, cLen,
+		existPtr, existLen,
 		C.size_t(slotIndex),
 	)
 	return mapStatus(status)
@@ -406,31 +444,24 @@ func MultiVaultUpdatePayload(container []byte, existingPassphrase, newPayload []
 	if len(container) == 0 {
 		return nil, ErrVaultCorrupt
 	}
-	cPtr := (*C.uint8_t)(unsafe.Pointer(&container[0]))
-
-	var existPtr, plainPtr *C.uint8_t
-	if len(existingPassphrase) > 0 {
-		existPtr = (*C.uint8_t)(unsafe.Pointer(&existingPassphrase[0]))
-	}
-	if len(newPayload) > 0 {
-		plainPtr = (*C.uint8_t)(unsafe.Pointer(&newPayload[0]))
-	}
+	cPtr, cLen := slicePtr(container)
+	existPtr, existLen := slicePtr(existingPassphrase)
+	plainPtr, plainLen := slicePtr(newPayload)
 
 	var outBytes *C.uint8_t
 	var outLen C.size_t
 
 	status := C.lsec_multi_vault_update_payload(
-		cPtr, C.size_t(len(container)),
-		existPtr, C.size_t(len(existingPassphrase)),
-		plainPtr, C.size_t(len(newPayload)),
+		cPtr, cLen,
+		existPtr, existLen,
+		plainPtr, plainLen,
 		&outBytes, &outLen,
 	)
 	if err := mapStatus(status); err != nil {
 		return nil, err
 	}
-	defer C.lsec_vault_bytes_free(outBytes, outLen)
 
-	return C.GoBytes(unsafe.Pointer(outBytes), C.int(outLen)), nil
+	return takeVaultBytes(outBytes, outLen)
 }
 
 func MultiVaultActiveSlots(container []byte) ([4]bool, error) {
@@ -438,11 +469,11 @@ func MultiVaultActiveSlots(container []byte) ([4]bool, error) {
 	if len(container) == 0 {
 		return result, ErrVaultCorrupt
 	}
-	cPtr := (*C.uint8_t)(unsafe.Pointer(&container[0]))
+	cPtr, cLen := slicePtr(container)
 
 	var slots [4]C.uint8_t
 	status := C.lsec_multi_vault_active_slots(
-		cPtr, C.size_t(len(container)),
+		cPtr, cLen,
 		(*C.uint8_t)(unsafe.Pointer(&slots[0])),
 		4,
 	)
