@@ -33,6 +33,15 @@ Install the client package:
 npm install @sfossl/lsec
 ```
 
+### Python
+
+Build the shared library and install the Python package:
+
+```bash
+cargo build --release -p lsec-ffi
+pip install -e bindings/python
+```
+
 ## Architecture
 
 `lsec` is organized as a modular Rust workspace exposing C-ABI and WebAssembly boundaries for native and web runtimes.
@@ -215,6 +224,17 @@ console.log(decrypted.bytes);
 decrypted.free();
 ```
 
+#### Envelope Vault (Python)
+
+```python
+import lsec
+from lsec import CipherSuite
+
+ciphertext = lsec.seal(b"data", b"passphrase", CipherSuite.CHACHA20_POLY1305)
+with lsec.unseal(ciphertext, b"passphrase") as buf:
+    assert buf.to_bytes() == b"data"
+```
+
 ## Ecosystem
 
 The `lsec` project consists of the following official components:
@@ -224,6 +244,7 @@ The `lsec` project consists of the following official components:
 - `lsec-wasm`: WebAssembly compilation target.
 - `bindings/go`: Go module wrapping the native C-ABI.
 - `bindings/js`: Node.js and browser SDK loading the WebAssembly module.
+- `bindings/python`: Zero-dependency Python package wrapping the native C-ABI.
 
 ## Properties
 
@@ -258,7 +279,7 @@ The `lsec` project consists of the following official components:
 
 - Streaming vault interface for files exceeding the 16 MiB single-buffer threshold.
 - Dynamic page size queries via `GetSystemInfo` on Windows ARM64 platforms.
-- Native Python and Swift bindings over the C-ABI.
+- Native Swift bindings over the C-ABI.
 
 ## Documentation
 
@@ -271,6 +292,7 @@ The `lsec` project consists of the following official components:
 | [C Integration](.docs/c-integration.md) | Header exports, compiler flags and memory management rules |
 | [Go Integration](.docs/go-integration.md) | CGo setup, runtime finalizers and pointer dereference safety |
 | [WebAssembly Integration](.docs/wasm-integration.md) | Node.js loader, browser streaming instantiation and linear memory rules |
+| [Python Integration](.docs/python-integration.md) | `ctypes` loader discovery, view deferral and buffer lifecycle safety |
 | [API Reference](.docs/api-reference.md) | Full specification of exported modules, constants, structs and C-ABI return codes |
 
 ## References
