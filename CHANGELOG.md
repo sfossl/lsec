@@ -1,5 +1,17 @@
 # Changelog
 
+## [v0.3.0] - 2026-11-27
+
+### Added
+
+- Zero-dependency Python bindings (`bindings/python`) over `lsec_ffi` `ctypes`, exposing `SecureBuffer`, `seal`/`unseal`, `seal_to_file`/`unseal_from_file`, `MultiSlotVault`, `harden_process()`, and `Totp`.
+- Dedicated Python integration guide (`.docs/python-integration.md`) and updated binding documentation.
+- Python test execution in CI and multi-platform PyPI wheel release workflow (`.github/workflows/release-python.yml`).
+
+### Updated
+
+- Package versions aligned to `0.3.0` across Rust workspace crates, `@sfossl/lsec`, and `bindings/python`.
+
 ## [0.2.0] - (2026-11-12)
 
 ### Added
