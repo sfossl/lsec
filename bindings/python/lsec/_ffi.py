@@ -16,6 +16,7 @@ BufferHandle = POINTER(LsecProtectedBuffer)
 BytePtr = POINTER(c_uint8)
 
 _SIGNATURES = {
+    "lsec_process_harden": (c_int32, []),
     "lsec_version_major": (c_uint32, []),
     "lsec_version_minor": (c_uint32, []),
     "lsec_version_patch": (c_uint32, []),
@@ -41,6 +42,30 @@ _SIGNATURES = {
     "lsec_vault_unseal_from_file": (
         c_int32,
         [c_char_p, BytePtr, c_size_t, POINTER(BufferHandle)],
+    ),
+    "lsec_multi_vault_create": (
+        c_int32,
+        [BytePtr, c_size_t, BytePtr, c_size_t, c_uint8, POINTER(BytePtr), POINTER(c_size_t)],
+    ),
+    "lsec_multi_vault_open": (
+        c_int32,
+        [BytePtr, c_size_t, BytePtr, c_size_t, POINTER(BufferHandle)],
+    ),
+    "lsec_multi_vault_add_slot": (
+        c_int32,
+        [BytePtr, c_size_t, BytePtr, c_size_t, BytePtr, c_size_t, c_uint8, POINTER(c_size_t)],
+    ),
+    "lsec_multi_vault_remove_slot": (
+        c_int32,
+        [BytePtr, c_size_t, BytePtr, c_size_t, c_size_t],
+    ),
+    "lsec_multi_vault_update_payload": (
+        c_int32,
+        [BytePtr, c_size_t, BytePtr, c_size_t, BytePtr, c_size_t, POINTER(BytePtr), POINTER(c_size_t)],
+    ),
+    "lsec_multi_vault_active_slots": (
+        c_int32,
+        [BytePtr, c_size_t, BytePtr, c_size_t],
     ),
     "lsec_vault_bytes_free": (None, [BytePtr, c_size_t]),
     "lsec_totp_decode_base32": (c_int32, [c_char_p, POINTER(BufferHandle)]),
