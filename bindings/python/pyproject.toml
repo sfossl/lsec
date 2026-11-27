@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lsec"
-version = "0.2.0"
+version = "0.3.0"
 description = "Python ctypes binding for lsec: page-locked secret buffers, envelope vault encryption and RFC 6238 TOTP."
 readme = "README.md"
 requires-python = ">=3.8"
