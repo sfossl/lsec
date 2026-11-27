@@ -1,6 +1,6 @@
 ## Overview
 
-`@sfossl/lsec` is the official JavaScript and TypeScript SDK for the `lsec` defense-in-depth security engine. It runs on top of freestanding WebAssembly with zero external dependencies, providing local vault encryption, memory protection buffers and RFC 6238 TOTP verification across Node.js, browsers and modern edge runtimes.
+`@sfossl/lsec` is the official JavaScript and TypeScript SDK for the `lsec` defence-in-depth security engine. It runs on top of freestanding WebAssembly with zero external dependencies, providing local vault encryption, memory protection buffers and RFC 6238 TOTP verification across Node.js, browsers and modern edge runtimes.
 
 ## Installation
 
@@ -12,7 +12,7 @@ npm install @sfossl/lsec
 
 | Module | Purpose | Runtime Support |
 | :--- | :--- | :--- |
-| `Buffer` | Protected memory allocation with manual zeroization | Node.js, Browsers, PWAs, Edge |
+| `Buffer` | Protected memory allocation with manual zeroisation | Node.js, Browsers, PWAs, Edge |
 | `Vault` | Envelope encryption with Argon2id and ChaCha20-Poly1305 | Node.js, Browsers, PWAs, Edge |
 | `MultiSlotVault` | Multi-slot container encryption and sub-millisecond fast updates | Node.js, Browsers, PWAs, Edge |
 | `TOTP` | RFC 6238 token code generation and timing-safe verify | Node.js, Browsers, PWAs, Edge |
@@ -24,9 +24,9 @@ npm install @sfossl/lsec
 In Node.js environments, `init()` automatically loads the embedded WebAssembly binary:
 
 ```javascript
-import { init, Vault, TOTP } from '@sfossl/lsec';
+import { init, Vault } from '@sfossl/lsec';
 
-// initialize wasm engine
+// initialise wasm engine
 await init();
 
 const data = new TextEncoder().encode("data");
@@ -39,7 +39,7 @@ const sealed = Vault.seal(data, passphrase);
 const unsealed = Vault.unseal(sealed, passphrase);
 console.log("decrypted bytes:", unsealed.length);
 
-// zeroize and free memory
+// zeroise and free memory
 unsealed.free();
 ```
 
@@ -72,10 +72,10 @@ decrypted.free();
 
 ### Browser and Bundlers
 
-In browsers, PWAs and bundlers (Vite, Webpack, Rollup), pass a fetched `Response`, `ArrayBuffer` or URL to `init()`:
+In browsers, PWAs and bundlers (Vite, Webpack, Rollup), pass a fetched `Response` or `ArrayBuffer` to `init()`:
 
 ```javascript
-import { init, Vault } from '@sfossl/lsec';
+import { init } from '@sfossl/lsec';
 
 const wasmResponse = await fetch('/assets/lsec_wasm.wasm');
 await init(wasmResponse);
@@ -86,7 +86,7 @@ await init(wasmResponse);
 Because WebAssembly executes within a dedicated linear memory space without host garbage collection:
 
 * Every `Buffer` instance allocates memory inside the WebAssembly heap.
-* Call `buf.free()` or `buf.wipe()` when done with sensitive material to ensure immediate memory zeroization.
+* Call `buf.free()` or `buf.wipe()` when done with sensitive material to ensure immediate memory zeroisation.
 
 ## Connected Topics
 
