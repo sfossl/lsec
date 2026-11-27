@@ -42,7 +42,7 @@ pub fn seal_default(plaintext: &[u8], passphrase: &[u8]) -> Result<Vec<u8>, Vaul
 }
 
 pub fn unseal(vault_bytes: &[u8], passphrase: &[u8]) -> Result<ProtectedBuffer, VaultError> {
-    if super::multi_slot::MultiSlotVault::is_multi_slot(vault_bytes) {
+    if vault_bytes.starts_with(&super::multi_slot::MULTI_VAULT_MAGIC) {
         return super::multi_slot::MultiSlotVault::open(vault_bytes, passphrase);
     }
 
@@ -131,7 +131,6 @@ mod tests {
         )
         .expect("ok");
 
-        // tamper with salt in header
         sealed[8] ^= 0x01;
 
         let res = unseal(&sealed, b"correct-password");
@@ -155,5 +154,13 @@ mod tests {
 
         let res = unseal(&sealed, b"correct-password");
         assert!(matches!(res, Err(VaultError::Crypto(_))));
+    }
+
+    #[test]
+    fn test_unseal_truncated_multi_slot_returns_header_too_short() {
+        let mut truncated = vec![0u8; 64];
+        truncated[0..6].copy_from_slice(&crate::vault::multi_slot::MULTI_VAULT_MAGIC);
+        let res = unseal(&truncated, b"pass");
+        assert!(matches!(res, Err(VaultError::HeaderTooShort)));
     }
 }
