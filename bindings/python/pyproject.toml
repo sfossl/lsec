@@ -9,7 +9,10 @@ description = "Python ctypes binding for lsec: page-locked secret buffers, envel
 readme = "README.md"
 requires-python = ">=3.8"
 license = { text = "MIT" }
-authors = [{ name = "Akash Sharma (Shwetambara FOSS Labs)" }]
+authors = [
+    { name = "Akash Sharma (Shwetambara FOSS Labs)" },
+    { name = "Aarpan Garg" },
+]
 keywords = ["security", "vault", "encryption", "totp", "mlock", "argon2", "chacha20poly1305"]
 classifiers = [
     "License :: OSI Approved :: MIT License",
