@@ -138,6 +138,10 @@ class Totp:
         drift: int = DEFAULT_DRIFT_STEPS,
         algorithm: int = TotpAlgorithm.SHA1,
     ) -> None:
+        step = uint(step, "step", U64_MAX)
+        digits = _digits(digits)
+        drift = uint(drift, "drift", U8_MAX)
+        algorithm = TotpAlgorithm(algorithm)
         if isinstance(secret, str):
             self._secret = decode_base32(secret)
         elif isinstance(secret, SecureBuffer):
@@ -148,9 +152,9 @@ class Totp:
                 "wrap raw seed bytes with SecureBuffer.from_bytes()"
             )
         self.step = step
-        self.digits = _digits(digits)
+        self.digits = digits
         self.drift = drift
-        self.algorithm = TotpAlgorithm(algorithm)
+        self.algorithm = algorithm
 
     def at(self, timestamp: Optional[int]) -> str:
         return generate(
