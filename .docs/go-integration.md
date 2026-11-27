@@ -15,7 +15,7 @@ go get github.com/sfossl/lsec/bindings/go
 
 ## Prerequisites
 
-The Go package links against `liblsec_ffi`. Ensure the native library is built and accessible in your library search path:
+The Go package links against `liblsec_ffi`. Ensure the native library is built and accessible in the library search path:
 
 ```bash
 cargo build --release -p lsec-ffi
