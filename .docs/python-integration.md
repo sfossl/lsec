@@ -54,5 +54,5 @@ with lsec.unseal(sealed, b"passphrase") as buf:
 | :--- | :--- | :--- |
 | **Previous** | [WebAssembly](wasm-integration.md) | Node.js and browser WebAssembly SDK |
 | **Next** | [API Reference](api-reference.md) | Complete signatures, constants and error codes |
-| **API Reference** | [API Reference: Python Bindings](api-reference.md#module-bindingspython) | Python classes, methods and exceptions |
+| **API Reference** | [API Reference: Python Bindings](api-reference.md#module-bindingspython-lsec-package) | Python classes, methods and exceptions |
 | **Source Code** | [`__init__.py`](../bindings/python/lsec/__init__.py) | `ctypes` wrapper implementation |
