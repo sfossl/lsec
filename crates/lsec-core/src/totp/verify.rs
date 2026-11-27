@@ -170,7 +170,13 @@ mod tests {
     #[test]
     fn test_verify_invalid_digits_propagates_error() {
         let config = SecurityConfig::builder().totp_digits(5).build();
-        let res = verify_code_at(RFC_SECRET, "12345", 1234567890, &config, TotpAlgorithm::Sha1);
+        let res = verify_code_at(
+            RFC_SECRET,
+            "12345",
+            1234567890,
+            &config,
+            TotpAlgorithm::Sha1,
+        );
         assert!(matches!(res, Err(TotpError::InvalidDigits(5))));
     }
 }
