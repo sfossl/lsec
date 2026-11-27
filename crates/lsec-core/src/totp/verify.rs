@@ -24,7 +24,7 @@ pub fn verify_code_at(
     let mut is_valid = false;
 
     for offset in -drift..=drift {
-        let Some(step_delta) = u64::from(offset.unsigned_abs()).checked_mul(step_secs) else {
+        let Some(step_delta) = offset.unsigned_abs().checked_mul(step_secs) else {
             continue;
         };
         let check_time = if offset < 0 {
