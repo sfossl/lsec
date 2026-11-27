@@ -15,7 +15,7 @@
 
 ## Building the Shared Library
 
-Build the optimized native shared library:
+Build the optimised native shared library:
 
 ```bash
 cargo build --release -p lsec-ffi
