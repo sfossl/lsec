@@ -164,22 +164,13 @@ pub unsafe extern "C" fn lsec_vault_seal_to_file(
             Err(_) => return LSEC_ERR_INVALID_PARAM,
         };
 
-        let plain_slice = if plaintext_len == 0 {
-            &[][..]
-        } else {
-            if plaintext.is_null() {
-                return LSEC_ERR_NULL_POINTER;
-            }
-            unsafe { slice::from_raw_parts(plaintext, plaintext_len) }
+        let plain_slice = match unsafe { to_slice(plaintext, plaintext_len) } {
+            Some(s) => s,
+            None => return LSEC_ERR_NULL_POINTER,
         };
-
-        let pass_slice = if passphrase_len == 0 {
-            &[][..]
-        } else {
-            if passphrase.is_null() {
-                return LSEC_ERR_NULL_POINTER;
-            }
-            unsafe { slice::from_raw_parts(passphrase, passphrase_len) }
+        let pass_slice = match unsafe { to_slice(passphrase, passphrase_len) } {
+            Some(s) => s,
+            None => return LSEC_ERR_NULL_POINTER,
         };
 
         let cipher = match parse_cipher_suite(cipher_id) {
@@ -220,13 +211,9 @@ pub unsafe extern "C" fn lsec_vault_unseal_from_file(
             Err(_) => return LSEC_ERR_INVALID_PARAM,
         };
 
-        let pass_slice = if passphrase_len == 0 {
-            &[][..]
-        } else {
-            if passphrase.is_null() {
-                return LSEC_ERR_NULL_POINTER;
-            }
-            unsafe { slice::from_raw_parts(passphrase, passphrase_len) }
+        let pass_slice = match unsafe { to_slice(passphrase, passphrase_len) } {
+            Some(s) => s,
+            None => return LSEC_ERR_NULL_POINTER,
         };
 
         match unseal_from_file(Path::new(path_str), pass_slice) {
