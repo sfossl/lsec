@@ -120,7 +120,7 @@ Negative C-ABI status codes map to subclasses of `lsec.LsecError`, which exposes
 | `-9` | `TotpError` | `LsecError` | Invalid Base32 seed or TOTP parameters |
 | `-10` | `PanicError` | `LsecError` | Rust panic caught at FFI boundary |
 | Other | `UnknownError` | `LsecError` | Unrecognised native status code |
-| None | `LibraryNotFoundError` | `OSError` | Native `liblsec_ffi` binary not found |
+| None | `LibraryNotFoundError` | `LsecError`, `OSError` | Native `liblsec_ffi` binary not found |
 
 ## Tests
 
