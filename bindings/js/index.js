@@ -19,15 +19,20 @@ function toBytes(input) {
   throw new TypeError('lsec: expected string, Uint8Array or lsec.Buffer');
 }
 
-function copyToWasm(bytes) {
-  if (bytes.length === 0) {
-    return 0;
-  }
-  const ptr = wasmExports.lsec_wasm_alloc(bytes.length);
+function allocWasm(size) {
+  const ptr = wasmExports.lsec_wasm_alloc(size);
   if (ptr === 0) {
     throw new Error('lsec: failed to allocate wasm memory');
   }
-  new Uint8Array(wasmExports.memory.buffer, ptr, bytes.length).set(bytes);
+  return ptr;
+}
+
+function copyToWasm(bytes) {
+  const allocSize = bytes.length === 0 ? 1 : bytes.length;
+  const ptr = allocWasm(allocSize);
+  if (bytes.length > 0) {
+    new Uint8Array(wasmExports.memory.buffer, ptr, bytes.length).set(bytes);
+  }
   return ptr;
 }
 
@@ -36,6 +41,36 @@ function copyFromWasm(ptr, len) {
     return new Uint8Array(0);
   }
   return new Uint8Array(wasmExports.memory.buffer, ptr, len).slice();
+}
+
+function parseCipher(cipher) {
+  if (cipher === 'chacha20-poly1305' || cipher === 1) {
+    return 1;
+  }
+  if (cipher === 'aes-256-gcm' || cipher === 'aes256-gcm' || cipher === 2) {
+    return 2;
+  }
+  throw new TypeError(`lsec: unknown cipher suite: ${cipher}`);
+}
+
+function parseAlgo(algo) {
+  if (algo === undefined || algo === 'sha1' || algo === 0) {
+    return 0;
+  }
+  if (algo === 'sha256' || algo === 1) {
+    return 1;
+  }
+  if (algo === 'sha512' || algo === 2) {
+    return 2;
+  }
+  throw new TypeError(`lsec: unknown totp algorithm: ${algo}`);
+}
+
+function readVaultBytes(outLenPtr, ptr) {
+  const len = new DataView(wasmExports.memory.buffer, outLenPtr, 4).getUint32(0, true);
+  const result = copyFromWasm(ptr, len);
+  wasmExports.lsec_wasm_vault_bytes_free(ptr, len);
+  return result;
 }
 
 export async function init(wasmSource) {
@@ -76,7 +111,6 @@ export async function init(wasmSource) {
   let moduleBytes = wasmSource;
 
   if (!moduleBytes) {
-    // node.js local file resolution fallback
     if (typeof globalThis.process !== 'undefined' && globalThis.process.versions?.node) {
       const fs = await import('node:fs');
       const path = await import('node:path');
@@ -140,9 +174,7 @@ export class Buffer {
       }
       return new Buffer(handle, bytes.length);
     } finally {
-      if (ptr !== 0) {
-        wasmExports.lsec_wasm_free(ptr, bytes.length);
-      }
+      wasmExports.lsec_wasm_wipe_and_free(ptr, bytes.length || 1);
     }
   }
 
@@ -200,12 +232,11 @@ export class Vault {
     ensureInitialized();
     const plainBytes = toBytes(plaintext);
     const passBytes = toBytes(passphrase);
-
-    const cipherId = cipher === 'aes-256-gcm' ? 2 : 1;
+    const cipherId = parseCipher(cipher);
 
     const plainPtr = copyToWasm(plainBytes);
     const passPtr = copyToWasm(passBytes);
-    const outLenPtr = wasmExports.lsec_wasm_alloc(4);
+    const outLenPtr = allocWasm(4);
 
     try {
       const sealedPtr = wasmExports.lsec_wasm_vault_seal(
@@ -221,16 +252,11 @@ export class Vault {
         throw new Error('lsec: vault seal operation failed');
       }
 
-      const lenView = new DataView(wasmExports.memory.buffer, outLenPtr, 4);
-      const sealedLen = lenView.getUint32(0, true);
-
-      const result = copyFromWasm(sealedPtr, sealedLen);
-      wasmExports.lsec_wasm_vault_bytes_free(sealedPtr, sealedLen);
-      return result;
+      return readVaultBytes(outLenPtr, sealedPtr);
     } finally {
-      if (plainPtr !== 0) wasmExports.lsec_wasm_free(plainPtr, plainBytes.length);
-      if (passPtr !== 0) wasmExports.lsec_wasm_free(passPtr, passBytes.length);
-      if (outLenPtr !== 0) wasmExports.lsec_wasm_free(outLenPtr, 4);
+      wasmExports.lsec_wasm_wipe_and_free(plainPtr, plainBytes.length || 1);
+      wasmExports.lsec_wasm_wipe_and_free(passPtr, passBytes.length || 1);
+      wasmExports.lsec_wasm_free(outLenPtr, 4);
     }
   }
 
@@ -257,8 +283,8 @@ export class Vault {
       const len = wasmExports.lsec_wasm_buffer_len(handle);
       return new Buffer(handle, len);
     } finally {
-      if (vaultPtr !== 0) wasmExports.lsec_wasm_free(vaultPtr, vBytes.length);
-      if (passPtr !== 0) wasmExports.lsec_wasm_free(passPtr, passBytes.length);
+      wasmExports.lsec_wasm_wipe_and_free(vaultPtr, vBytes.length || 1);
+      wasmExports.lsec_wasm_wipe_and_free(passPtr, passBytes.length || 1);
     }
   }
 }
@@ -268,15 +294,11 @@ export class MultiSlotVault {
     ensureInitialized();
     const plainBytes = toBytes(payload);
     const passBytes = toBytes(passphrase);
-
-    let cipherId = 1;
-    if (cipher === 'aes-256-gcm' || cipher === 'aes256-gcm' || cipher === 2) {
-      cipherId = 2;
-    }
+    const cipherId = parseCipher(cipher);
 
     const plainPtr = copyToWasm(plainBytes);
     const passPtr = copyToWasm(passBytes);
-    const outLenPtr = wasmExports.lsec_wasm_alloc(4);
+    const outLenPtr = allocWasm(4);
 
     try {
       const sealedPtr = wasmExports.lsec_wasm_multi_vault_create(
@@ -292,14 +314,11 @@ export class MultiSlotVault {
         throw new Error('lsec: multi-slot vault creation failed');
       }
 
-      const len = new DataView(wasmExports.memory.buffer).getUint32(outLenPtr, true);
-      const containerBytes = copyFromWasm(sealedPtr, len);
-      wasmExports.lsec_wasm_vault_bytes_free(sealedPtr, len);
-      return containerBytes;
+      return readVaultBytes(outLenPtr, sealedPtr);
     } finally {
-      if (plainPtr !== 0) wasmExports.lsec_wasm_free(plainPtr, plainBytes.length);
-      if (passPtr !== 0) wasmExports.lsec_wasm_free(passPtr, passBytes.length);
-      if (outLenPtr !== 0) wasmExports.lsec_wasm_free(outLenPtr, 4);
+      wasmExports.lsec_wasm_wipe_and_free(plainPtr, plainBytes.length || 1);
+      wasmExports.lsec_wasm_wipe_and_free(passPtr, passBytes.length || 1);
+      wasmExports.lsec_wasm_free(outLenPtr, 4);
     }
   }
 
@@ -309,23 +328,21 @@ export class MultiSlotVault {
 
   static addSlot(container, existingPassphrase, newPassphrase, cipher = 'chacha20-poly1305') {
     ensureInitialized();
-    const cBytes = toBytes(container);
+    if (!(container instanceof Uint8Array)) {
+      throw new TypeError('lsec: container must be a Uint8Array');
+    }
     const existBytes = toBytes(existingPassphrase);
     const newBytes = toBytes(newPassphrase);
+    const cipherId = parseCipher(cipher);
 
-    let cipherId = 1;
-    if (cipher === 'aes-256-gcm' || cipher === 'aes256-gcm' || cipher === 2) {
-      cipherId = 2;
-    }
-
-    const cPtr = copyToWasm(cBytes);
+    const cPtr = copyToWasm(container);
     const existPtr = copyToWasm(existBytes);
     const newPtr = copyToWasm(newBytes);
 
     try {
       const slotIdx = wasmExports.lsec_wasm_multi_vault_add_slot(
         cPtr,
-        cBytes.length,
+        container.length,
         existPtr,
         existBytes.length,
         newPtr,
@@ -337,30 +354,30 @@ export class MultiSlotVault {
         throw new Error('lsec: failed to add slot to multi-slot vault');
       }
 
-      const updated = copyFromWasm(cPtr, cBytes.length);
-      if (container instanceof Uint8Array) {
-        container.set(updated);
-      }
+      const updated = copyFromWasm(cPtr, container.length);
+      container.set(updated);
       return slotIdx;
     } finally {
-      if (cPtr !== 0) wasmExports.lsec_wasm_free(cPtr, cBytes.length);
-      if (existPtr !== 0) wasmExports.lsec_wasm_free(existPtr, existBytes.length);
-      if (newPtr !== 0) wasmExports.lsec_wasm_free(newPtr, newBytes.length);
+      wasmExports.lsec_wasm_wipe_and_free(cPtr, container.length || 1);
+      wasmExports.lsec_wasm_wipe_and_free(existPtr, existBytes.length || 1);
+      wasmExports.lsec_wasm_wipe_and_free(newPtr, newBytes.length || 1);
     }
   }
 
   static removeSlot(container, existingPassphrase, slotIndex) {
     ensureInitialized();
-    const cBytes = toBytes(container);
+    if (!(container instanceof Uint8Array)) {
+      throw new TypeError('lsec: container must be a Uint8Array');
+    }
     const existBytes = toBytes(existingPassphrase);
 
-    const cPtr = copyToWasm(cBytes);
+    const cPtr = copyToWasm(container);
     const existPtr = copyToWasm(existBytes);
 
     try {
       const status = wasmExports.lsec_wasm_multi_vault_remove_slot(
         cPtr,
-        cBytes.length,
+        container.length,
         existPtr,
         existBytes.length,
         slotIndex
@@ -370,13 +387,11 @@ export class MultiSlotVault {
         throw new Error(`lsec: failed to remove slot ${slotIndex}`);
       }
 
-      const updated = copyFromWasm(cPtr, cBytes.length);
-      if (container instanceof Uint8Array) {
-        container.set(updated);
-      }
+      const updated = copyFromWasm(cPtr, container.length);
+      container.set(updated);
     } finally {
-      if (cPtr !== 0) wasmExports.lsec_wasm_free(cPtr, cBytes.length);
-      if (existPtr !== 0) wasmExports.lsec_wasm_free(existPtr, existBytes.length);
+      wasmExports.lsec_wasm_wipe_and_free(cPtr, container.length || 1);
+      wasmExports.lsec_wasm_wipe_and_free(existPtr, existBytes.length || 1);
     }
   }
 
@@ -389,7 +404,7 @@ export class MultiSlotVault {
     const cPtr = copyToWasm(cBytes);
     const existPtr = copyToWasm(existBytes);
     const plainPtr = copyToWasm(plainBytes);
-    const outLenPtr = wasmExports.lsec_wasm_alloc(4);
+    const outLenPtr = allocWasm(4);
 
     try {
       const sealedPtr = wasmExports.lsec_wasm_multi_vault_update_payload(
@@ -406,15 +421,12 @@ export class MultiSlotVault {
         throw new Error('lsec: fast payload update failed');
       }
 
-      const len = new DataView(wasmExports.memory.buffer).getUint32(outLenPtr, true);
-      const updatedBytes = copyFromWasm(sealedPtr, len);
-      wasmExports.lsec_wasm_vault_bytes_free(sealedPtr, len);
-      return updatedBytes;
+      return readVaultBytes(outLenPtr, sealedPtr);
     } finally {
-      if (cPtr !== 0) wasmExports.lsec_wasm_free(cPtr, cBytes.length);
-      if (existPtr !== 0) wasmExports.lsec_wasm_free(existPtr, existBytes.length);
-      if (plainPtr !== 0) wasmExports.lsec_wasm_free(plainPtr, plainBytes.length);
-      if (outLenPtr !== 0) wasmExports.lsec_wasm_free(outLenPtr, 4);
+      wasmExports.lsec_wasm_wipe_and_free(cPtr, cBytes.length || 1);
+      wasmExports.lsec_wasm_wipe_and_free(existPtr, existBytes.length || 1);
+      wasmExports.lsec_wasm_wipe_and_free(plainPtr, plainBytes.length || 1);
+      wasmExports.lsec_wasm_free(outLenPtr, 4);
     }
   }
 
@@ -422,7 +434,7 @@ export class MultiSlotVault {
     ensureInitialized();
     const cBytes = toBytes(container);
     const cPtr = copyToWasm(cBytes);
-    const outPtr = wasmExports.lsec_wasm_alloc(4);
+    const outPtr = allocWasm(4);
 
     try {
       const status = wasmExports.lsec_wasm_multi_vault_active_slots(cPtr, cBytes.length, outPtr);
@@ -438,8 +450,8 @@ export class MultiSlotVault {
         slotsBytes[3] === 1
       ];
     } finally {
-      if (cPtr !== 0) wasmExports.lsec_wasm_free(cPtr, cBytes.length);
-      if (outPtr !== 0) wasmExports.lsec_wasm_free(outPtr, 4);
+      wasmExports.lsec_wasm_wipe_and_free(cPtr, cBytes.length || 1);
+      wasmExports.lsec_wasm_free(outPtr, 4);
     }
   }
 }
@@ -458,7 +470,7 @@ export class TOTP {
       const len = wasmExports.lsec_wasm_buffer_len(handle);
       return new Buffer(handle, len);
     } finally {
-      if (ptr !== 0) wasmExports.lsec_wasm_free(ptr, bytes.length);
+      wasmExports.lsec_wasm_wipe_and_free(ptr, bytes.length || 1);
     }
   }
 
@@ -468,13 +480,10 @@ export class TOTP {
     const timestamp = BigInt(options.timestamp ?? Math.floor(Date.now() / 1000));
     const stepSeconds = BigInt(options.stepSeconds ?? 30);
     const digits = options.digits ?? 6;
-
-    let algoId = 0;
-    if (options.algorithm === 'sha256') algoId = 1;
-    if (options.algorithm === 'sha512') algoId = 2;
+    const algoId = parseAlgo(options.algorithm);
 
     const secPtr = copyToWasm(secBytes);
-    const codePtr = wasmExports.lsec_wasm_alloc(digits + 1);
+    const codePtr = allocWasm(digits + 1);
 
     try {
       const status = wasmExports.lsec_wasm_totp_generate(
@@ -495,8 +504,8 @@ export class TOTP {
       const codeBytes = copyFromWasm(codePtr, digits);
       return new TextDecoder().decode(codeBytes);
     } finally {
-      if (secPtr !== 0) wasmExports.lsec_wasm_free(secPtr, secBytes.length);
-      if (codePtr !== 0) wasmExports.lsec_wasm_free(codePtr, digits + 1);
+      wasmExports.lsec_wasm_wipe_and_free(secPtr, secBytes.length || 1);
+      wasmExports.lsec_wasm_wipe_and_free(codePtr, digits + 1);
     }
   }
 
@@ -508,10 +517,7 @@ export class TOTP {
     const stepSeconds = BigInt(options.stepSeconds ?? 30);
     const digits = options.digits ?? candidateCode.trim().length;
     const driftSteps = options.driftSteps ?? 1;
-
-    let algoId = 0;
-    if (options.algorithm === 'sha256') algoId = 1;
-    if (options.algorithm === 'sha512') algoId = 2;
+    const algoId = parseAlgo(options.algorithm);
 
     const secPtr = copyToWasm(secBytes);
     const candPtr = copyToWasm(candBytes);
@@ -535,8 +541,8 @@ export class TOTP {
 
       return result === 1;
     } finally {
-      if (secPtr !== 0) wasmExports.lsec_wasm_free(secPtr, secBytes.length);
-      if (candPtr !== 0) wasmExports.lsec_wasm_free(candPtr, candBytes.length);
+      wasmExports.lsec_wasm_wipe_and_free(secPtr, secBytes.length || 1);
+      wasmExports.lsec_wasm_wipe_and_free(candPtr, candBytes.length || 1);
     }
   }
 }
