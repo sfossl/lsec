@@ -13,26 +13,22 @@ fn decode_char(c: u8) -> Result<u8, TotpError> {
 }
 
 pub fn decode_secret(encoded: &str) -> Result<ProtectedBuffer, TotpError> {
-    let mut clean = Vec::with_capacity(encoded.len());
-    for &b in encoded.as_bytes() {
-        if b == b' ' || b == b'-' || b == b'=' {
-            continue;
-        }
-        clean.push(b);
-    }
-
-    if clean.is_empty() {
-        return Err(TotpError::EmptySecret);
-    }
-
-    let estimated_capacity = (clean.len() * 5) / 8;
-    let mut raw_bytes = Vec::with_capacity(estimated_capacity);
+    let mut raw_bytes = zeroize::Zeroizing::new(Vec::with_capacity((encoded.len() * 5) / 8));
 
     let mut buffer = 0u32;
     let mut bits_left = 0u32;
 
-    for &c in &clean {
-        let val = decode_char(c)?;
+    for &b in encoded.as_bytes() {
+        if b == b' ' || b == b'-' || b == b'=' {
+            continue;
+        }
+        let val = match decode_char(b) {
+            Ok(v) => v,
+            Err(e) => {
+                buffer.zeroize();
+                return Err(e);
+            }
+        };
         buffer = (buffer << 5) | u32::from(val);
         bits_left += 5;
 
@@ -43,19 +39,18 @@ pub fn decode_secret(encoded: &str) -> Result<ProtectedBuffer, TotpError> {
         }
     }
 
-    clean.zeroize();
-
     if bits_left > 0 && buffer != 0 {
-        raw_bytes.zeroize();
+        buffer.zeroize();
         return Err(TotpError::InvalidBase32);
     }
 
     buffer.zeroize();
 
-    let protected = ProtectedBuffer::new(&raw_bytes)?;
-    raw_bytes.zeroize();
+    if raw_bytes.is_empty() {
+        return Err(TotpError::EmptySecret);
+    }
 
-    Ok(protected)
+    Ok(ProtectedBuffer::new(&raw_bytes)?)
 }
 
 #[cfg(test)]
@@ -64,7 +59,6 @@ mod tests {
 
     #[test]
     fn test_decode_standard_vector() {
-        // "Hello!" in ascii is 48 65 6c 6c 6f 21 -> base32 "JBSWY3DPEE======"
         let protected = decode_secret("JBSWY3DPEE======").expect("decode ok");
         assert_eq!(&protected[..], b"Hello!");
     }
@@ -82,11 +76,15 @@ mod tests {
             decode_secret("   --- ==="),
             Err(TotpError::EmptySecret)
         ));
+        assert!(matches!(decode_secret("A"), Err(TotpError::EmptySecret)));
+        assert!(matches!(
+            decode_secret("A======="),
+            Err(TotpError::EmptySecret)
+        ));
     }
 
     #[test]
     fn test_decode_invalid_chars_fails() {
-        // '0', '1', '8', '9' are not in standard base32
         assert!(matches!(
             decode_secret("JBSWY3DPE8"),
             Err(TotpError::InvalidBase32)
@@ -99,7 +97,6 @@ mod tests {
 
     #[test]
     fn test_decode_nonzero_residual_bits_fails() {
-        // 'JBSWY3DPEE======' has valid zero padding; changing 'E' to 'F' introduces non-zero residual bits
         assert!(matches!(
             decode_secret("JBSWY3DPEF======"),
             Err(TotpError::InvalidBase32)
