@@ -220,7 +220,7 @@ const passphrase = new TextEncoder().encode("passphrase");
 const encrypted = Vault.seal(data, passphrase);
 const decrypted = Vault.unseal(encrypted, passphrase);
 
-console.log(decrypted.bytes);
+console.log(decrypted.bytes());
 decrypted.free();
 ```
 
