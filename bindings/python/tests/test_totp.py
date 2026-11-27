@@ -192,6 +192,10 @@ class TotpClassTests(unittest.TestCase):
         with self.assertRaises(lsec.TotpError):
             Totp("JBSWY3DPEHPK3PXP", digits=9)
 
+    def test_invalid_step_raises_at_construction(self):
+        with self.assertRaises(lsec.InvalidParameterError):
+            Totp("JBSWY3DPEHPK3PXP", step=-1)
+
 
 if __name__ == "__main__":
     unittest.main()
