@@ -18,10 +18,10 @@ from .errors import (
     VaultIOError,
 )
 from .totp import Totp, TotpAlgorithm
-from .vault import CipherSuite, seal, seal_to_file, unseal, unseal_from_file
+from .vault import CipherSuite, MultiSlotVault, seal, seal_to_file, unseal, unseal_from_file
 from . import totp, vault
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "AllocationError",
@@ -32,6 +32,7 @@ __all__ = [
     "LibraryNotFoundError",
     "LsecError",
     "MemoryLockError",
+    "MultiSlotVault",
     "NullPointerError",
     "PanicError",
     "SecureBuffer",
@@ -41,6 +42,7 @@ __all__ = [
     "UnknownError",
     "VaultCorruptError",
     "VaultIOError",
+    "harden_process",
     "library_path",
     "load_library",
     "seal",
@@ -51,6 +53,12 @@ __all__ = [
     "vault",
     "version",
 ]
+
+
+def harden_process() -> None:
+    """Enforce anti-debugging and core-dump exclusion on the current process."""
+    from .errors import check
+    check(load_library().lsec_process_harden())
 
 
 def version() -> Tuple[int, int, int]:
