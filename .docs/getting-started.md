@@ -5,7 +5,7 @@
 `lsec` is a defense-in-depth local security engine providing page-locked memory, anti-dump guarantees, envelope vault encryption and replay-resistant TOTP verification.
 
 ### Documentation Guides
-[Getting Started](getting-started.md) | [Memory Guard](memguard.md) | [Vault](vault.md) | [TOTP](totp.md) | [C Integration](c-integration.md) | [Go Integration](go-integration.md) | [WebAssembly](wasm-integration.md) | [API Reference](api-reference.md)
+[Getting Started](getting-started.md) | [Memory Guard](memguard.md) | [Vault](vault.md) | [TOTP](totp.md) | [C Integration](c-integration.md) | [Go Integration](go-integration.md) | [WebAssembly](wasm-integration.md) | [Python Integration](python-integration.md) | [API Reference](api-reference.md)
 
 ## Installation
 
@@ -153,3 +153,4 @@ let custom_config = SecurityConfig::builder()
 | **Next** | [Memory Guard](memguard.md) | Page-locked memory and zeroization deep dive |
 | **API Reference** | [API Reference](api-reference.md) | Parameter limits, structs and C-ABI codes |
 | **Integrations** | [Go Integration](go-integration.md) | Using lsec from Go via CGo |
+| **Integrations** | [Python Integration](python-integration.md) | Using lsec from Python via ctypes |
