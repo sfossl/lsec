@@ -202,12 +202,10 @@ mod tests {
             &SecurityConfig::default(),
         )
         .serialize();
-        // set memory kib to 0
         serialized[24..28].copy_from_slice(&0u32.to_be_bytes());
         let res = VaultHeader::deserialize(&serialized);
         assert!(matches!(res, Err(VaultError::InvalidKdfParameters)));
 
-        // set iterations to 0
         let mut serialized2 = VaultHeader::new(
             CipherSuite::ChaCha20Poly1305,
             salt,
@@ -218,7 +216,6 @@ mod tests {
         let res2 = VaultHeader::deserialize(&serialized2);
         assert!(matches!(res2, Err(VaultError::InvalidKdfParameters)));
 
-        // set iterations excessively high
         let mut serialized3 = VaultHeader::new(
             CipherSuite::ChaCha20Poly1305,
             salt,
