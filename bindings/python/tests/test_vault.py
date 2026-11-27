@@ -140,5 +140,48 @@ class VaultFileTests(unittest.TestCase):
             vault.unseal_from_file(path, b"wrong")
 
 
+@requires_lib
+class MultiSlotVaultTests(unittest.TestCase):
+    def test_create_open_slots_and_update_payload(self):
+        container = bytearray(vault.MultiSlotVault.create(b"payload-one", b"pass-zero"))
+        self.assertEqual(vault.MultiSlotVault.active_slots(container), (True, False, False, False))
+
+        with vault.MultiSlotVault.open(container, b"pass-zero") as out:
+            self.assertEqual(out.to_bytes(), b"payload-one")
+
+        slot_idx = vault.MultiSlotVault.add_slot(container, b"pass-zero", b"pass-one")
+        self.assertEqual(slot_idx, 1)
+        self.assertEqual(vault.MultiSlotVault.active_slots(container), (True, True, False, False))
+
+        with vault.MultiSlotVault.open(container, b"pass-one") as out:
+            self.assertEqual(out.to_bytes(), b"payload-one")
+
+        updated = vault.MultiSlotVault.update_payload(container, b"pass-one", b"payload-two")
+        with vault.MultiSlotVault.open(updated, b"pass-zero") as out:
+            self.assertEqual(out.to_bytes(), b"payload-two")
+
+        vault.MultiSlotVault.remove_slot(container, b"pass-zero", 1)
+        self.assertEqual(vault.MultiSlotVault.active_slots(container), (True, False, False, False))
+        with self.assertRaises(lsec.CryptoError):
+            vault.MultiSlotVault.open(container, b"pass-one")
+
+    def test_immutable_container_rejected_for_slot_mutation(self):
+        container = vault.MultiSlotVault.create(b"payload", b"pass")
+        with self.assertRaises(TypeError):
+            vault.MultiSlotVault.add_slot(container, b"pass", b"pass-two")  # type: ignore[arg-type]
+        with self.assertRaises(TypeError):
+            vault.MultiSlotVault.remove_slot(container, b"pass", 0)  # type: ignore[arg-type]
+
+    def test_remove_slot_negative_index_raises(self):
+        container = bytearray(vault.MultiSlotVault.create(b"payload", b"pass"))
+        with self.assertRaises(lsec.InvalidParameterError):
+            vault.MultiSlotVault.remove_slot(container, b"pass", -1)
+
+    def test_create_with_aes256_gcm(self):
+        blob = vault.MultiSlotVault.create(b"aes-payload", b"pass", CipherSuite.AES256_GCM)
+        with vault.MultiSlotVault.open(blob, b"pass") as out:
+            self.assertEqual(out.to_bytes(), b"aes-payload")
+
+
 if __name__ == "__main__":
     unittest.main()
