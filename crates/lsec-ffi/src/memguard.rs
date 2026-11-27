@@ -80,26 +80,38 @@ pub unsafe extern "C" fn lsec_buffer_zeroed(
 
 #[no_mangle]
 pub unsafe extern "C" fn lsec_buffer_len(buf: *const LsecProtectedBuffer) -> usize {
-    if buf.is_null() {
-        return 0;
-    }
-    unsafe { (*buf).0.len() }
+    let result = catch_unwind(|| {
+        if buf.is_null() {
+            return 0;
+        }
+        unsafe { (*buf).0.len() }
+    });
+
+    result.unwrap_or(0)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn lsec_buffer_data(buf: *const LsecProtectedBuffer) -> *const u8 {
-    if buf.is_null() {
-        return core::ptr::null();
-    }
-    unsafe { (*buf).0.as_slice().as_ptr() }
+    let result = catch_unwind(|| {
+        if buf.is_null() {
+            return core::ptr::null();
+        }
+        unsafe { (*buf).0.as_slice().as_ptr() }
+    });
+
+    result.unwrap_or(core::ptr::null())
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn lsec_buffer_data_mut(buf: *mut LsecProtectedBuffer) -> *mut u8 {
-    if buf.is_null() {
-        return core::ptr::null_mut();
-    }
-    unsafe { (*buf).0.as_mut_slice().as_mut_ptr() }
+    let result = catch_unwind(|| {
+        if buf.is_null() {
+            return core::ptr::null_mut();
+        }
+        unsafe { (*buf).0.as_mut_slice().as_mut_ptr() }
+    });
+
+    result.unwrap_or(core::ptr::null_mut())
 }
 
 #[no_mangle]
