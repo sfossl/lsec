@@ -396,7 +396,18 @@ func MultiVaultCreate(payload, passphrase []byte, cipher CipherSuite) ([]byte, e
 }
 
 func MultiVaultOpen(container, passphrase []byte) (*Buffer, error) {
-	return Unseal(container, passphrase)
+	contPtr, contLen := slicePtr(container)
+	passPtr, passLen := slicePtr(passphrase)
+
+	var outBuf *C.lsec_protected_buffer_t
+	status := C.lsec_multi_vault_open(contPtr, contLen, passPtr, passLen, &outBuf)
+	if err := mapStatus(status); err != nil {
+		return nil, err
+	}
+
+	b := &Buffer{ptr: outBuf}
+	runtime.SetFinalizer(b, (*Buffer).Free)
+	return b, nil
 }
 
 func MultiVaultAddSlot(container []byte, existingPassphrase, newPassphrase []byte, cipher CipherSuite) (int, error) {
