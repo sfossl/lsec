@@ -3,14 +3,12 @@ import { init, version, Buffer, Vault, MultiSlotVault, TOTP, Totp } from './inde
 
 await init();
 
-// 1. version verification
 const v = version();
 assert.strictEqual(v.major, 0);
-assert.strictEqual(v.minor, 2);
+assert.strictEqual(v.minor, 3);
 assert.strictEqual(v.patch, 0);
 assert.strictEqual(Totp, TOTP);
 
-// 2. buffer lifecycle
 {
   const text = 'lsec-in-memory-js-buffer-test';
   const buf = Buffer.from(text);
@@ -27,7 +25,6 @@ assert.strictEqual(Totp, TOTP);
   assert.throws(() => buf.bytes(), /already been freed/);
 }
 
-// 3. vault seal and unseal with chacha20-poly1305
 {
   const plaintext = 'confidential-offline-client-session';
   const passphrase = 'js-vault-password-456';
@@ -45,7 +42,6 @@ assert.strictEqual(Totp, TOTP);
   }, /unseal failed/);
 }
 
-// 4. vault seal and unseal with aes-256-gcm
 {
   const plaintext = 'confidential-aes-session';
   const passphrase = 'aes-vault-password-789';
@@ -58,7 +54,41 @@ assert.strictEqual(Totp, TOTP);
   unsealed.free();
 }
 
-// 5. totp base32 decoding
+{
+  assert.throws(() => {
+    Vault.seal('data', 'passphrase', 'unknown-cipher');
+  }, TypeError);
+
+  assert.throws(() => {
+    MultiSlotVault.create('data', 'passphrase', 'unknown-cipher');
+  }, TypeError);
+
+  assert.throws(() => {
+    TOTP.generate('12345678901234567890', { algorithm: 'md5' });
+  }, TypeError);
+
+  assert.throws(() => {
+    TOTP.verify('12345678901234567890', '123456', { algorithm: 'md5' });
+  }, TypeError);
+}
+
+{
+  const emptyBuf = Buffer.from(new Uint8Array(0));
+  assert.strictEqual(emptyBuf.length, 0);
+  assert.deepStrictEqual(emptyBuf.bytes(), new Uint8Array(0));
+  emptyBuf.free();
+
+  const sealedEmpty = Vault.seal(new Uint8Array(0), 'passphrase');
+  const unsealedEmpty = Vault.unseal(sealedEmpty, 'passphrase');
+  assert.strictEqual(unsealedEmpty.length, 0);
+  unsealedEmpty.free();
+
+  const emptyContainer = MultiSlotVault.create(new Uint8Array(0), 'passphrase');
+  const openedEmpty = MultiSlotVault.open(emptyContainer, 'passphrase');
+  assert.strictEqual(openedEmpty.length, 0);
+  openedEmpty.free();
+}
+
 {
   const b32 = 'JBSWY3DPEE======';
   const decoded = TOTP.decodeBase32(b32);
@@ -67,7 +97,6 @@ assert.strictEqual(Totp, TOTP);
   decoded.free();
 }
 
-// 6. totp rfc 6238 test vectors
 {
   const rfcSha1Seed = '12345678901234567890';
   const code = TOTP.generate(rfcSha1Seed, {
@@ -112,13 +141,11 @@ assert.strictEqual(Totp, TOTP);
   assert.strictEqual(validSha512, true);
 }
 
-// 7. totp drift tolerance
 {
   const seed = 'test-drift-seed-bytes';
   const t0 = 1000000;
   const currentCode = TOTP.generate(seed, { timestamp: t0, stepSeconds: 30, digits: 6 });
 
-  // verify at t0 + 30 with 1 step drift
   const driftOk = TOTP.verify(seed, currentCode, {
     timestamp: t0 + 30,
     stepSeconds: 30,
@@ -127,7 +154,6 @@ assert.strictEqual(Totp, TOTP);
   });
   assert.strictEqual(driftOk, true);
 
-  // verify at t0 + 60 with 1 step drift should fail
   const driftExceeded = TOTP.verify(seed, currentCode, {
     timestamp: t0 + 60,
     stepSeconds: 30,
@@ -137,7 +163,6 @@ assert.strictEqual(Totp, TOTP);
   assert.strictEqual(driftExceeded, false);
 }
 
-// 8. multi-slot vault container
 {
   const payload = 'multi-slot-js-sdk-payload';
   const pass0 = 'primary-js-key';
@@ -163,10 +188,25 @@ assert.strictEqual(Totp, TOTP);
   const newPayload = 'updated-payload-without-re-running-argon2id';
   const updatedContainer = MultiSlotVault.updatePayload(container, pass0, newPayload);
 
-  // verify transparent routing in standard Vault.unseal
   const unsealed = Vault.unseal(updatedContainer, pass1);
   assert.strictEqual(unsealed.text(), newPayload);
   unsealed.free();
+
+  assert.throws(() => {
+    MultiSlotVault.addSlot('not-a-uint8array', pass0, pass1);
+  }, TypeError);
+
+  assert.throws(() => {
+    MultiSlotVault.removeSlot('not-a-uint8array', pass0, 1);
+  }, TypeError);
+
+  assert.throws(() => {
+    MultiSlotVault.removeSlot(updatedContainer, 'wrong-passphrase', 1);
+  }, /failed to remove slot/);
+
+  assert.throws(() => {
+    MultiSlotVault.removeSlot(updatedContainer, pass0, 99);
+  }, /failed to remove slot/);
 
   MultiSlotVault.removeSlot(updatedContainer, pass0, 1);
   assert.throws(() => {
