@@ -92,7 +92,7 @@ mod tests {
                 secret.len(),
                 pass.as_ptr(),
                 pass.len(),
-                1, // ChaCha20Poly1305
+                1,
                 &mut out_bytes,
                 &mut out_len,
             )
@@ -147,7 +147,7 @@ mod tests {
                 timestamp,
                 30,
                 6,
-                0, // Sha1
+                0,
                 code_buf.as_mut_ptr(),
                 code_buf.len(),
             )
