@@ -65,9 +65,9 @@ OS page-aligned memory allocation, physical RAM locking and deterministic wiping
 | `ProtectedBuffer::is_empty` | `fn is_empty(&self) -> bool` | Returns true if length is zero. |
 | `ProtectedBuffer::as_slice` | `fn as_slice(&self) -> &[u8]` | Returns immutable slice reference to locked memory. |
 | `ProtectedBuffer::as_mut_slice` | `fn as_mut_slice(&mut self) -> &mut [u8]` | Returns mutable slice reference to locked memory. |
-| `ProtectedBuffer::wipe` | `fn wipe(&mut self)` | Overwrites buffer using volatile memory zeroization. |
-| `ProtectedArray::new` | `fn new(data: [u8; N]) -> Self` | Wraps a fixed-size stack array with compiler-fenced zeroization on drop. |
-| `ProtectedArray::zeroed` | `fn zeroed() -> Self` | Initializes a fixed-size stack array with all bytes set to zero. |
+| `ProtectedBuffer::wipe` | `fn wipe(&mut self)` | Overwrites buffer using volatile memory zeroisation. |
+| `ProtectedArray::new` | `fn new(data: [u8; N]) -> Self` | Wraps a fixed-size stack array with compiler-fenced zeroisation on drop. |
+| `ProtectedArray::zeroed` | `fn zeroed() -> Self` | Initialises a fixed-size stack array with all bytes set to zero. |
 | `ProtectedArray::from_slice` | `fn from_slice(slice: &[u8]) -> Result<Self, MemguardError>` | Copies bytes from slice, returning `LengthMismatch` if length does not match `N`. |
 | `ProtectedArray::with_exposed` | `fn with_exposed<R>(&self, f: impl FnOnce(&[u8; N]) -> R) -> R` | Temporarily exposes inner array to closure scope. |
 | `ProtectedArray::with_exposed_mut` | `fn with_exposed_mut<R>(&mut self, f: impl FnOnce(&mut [u8; N]) -> R) -> R` | Temporarily exposes mutable inner array to closure scope. |
@@ -114,7 +114,7 @@ Binary envelope container and atomic filesystem storage.
 | `MultiSlotVault::create` | `fn create(payload: &[u8], passphrase: &[u8], cipher: CipherSuite, config: &SecurityConfig) -> Result<Vec<u8>, VaultError>` | Generates a 256-bit DEK and creates a multi-slot container with slot 0. |
 | `MultiSlotVault::open` | `fn open(container: &[u8], passphrase: &[u8]) -> Result<ProtectedBuffer, VaultError>` | Unwraps DEK from matching active slot and decrypts payload into locked memory. |
 | `MultiSlotVault::add_slot` | `fn add_slot(container: &mut [u8], existing_passphrase: &[u8], new_passphrase: &[u8], config: &SecurityConfig, new_cipher: CipherSuite) -> Result<usize, VaultError>` | Wraps existing DEK under new credential into the first free slot. |
-| `MultiSlotVault::remove_slot` | `fn remove_slot(container: &mut [u8], existing_passphrase: &[u8], slot_index: usize) -> Result<(), VaultError>` | Zeroizes and deactivates target slot while preserving remaining credentials. |
+| `MultiSlotVault::remove_slot` | `fn remove_slot(container: &mut [u8], existing_passphrase: &[u8], slot_index: usize) -> Result<(), VaultError>` | Zeroises and deactivates target slot while preserving remaining credentials. |
 | `MultiSlotVault::update_payload` | `fn update_payload(container: &mut Vec<u8>, existing_passphrase: &[u8], new_payload: &[u8]) -> Result<(), VaultError>` | Fast payload update reusing existing DEK with zero Argon2id recomputation. |
 | `MultiSlotVault::active_slots` | `fn active_slots(container: &[u8]) -> Result<[bool; 4], VaultError>` | Returns active status flags for all 4 container slots. |
 
@@ -227,7 +227,7 @@ C99 header `include/lsec.h` function declarations and error codes.
 | `lsec_multi_vault_create` | `int32_t lsec_multi_vault_create(const uint8_t *plain, size_t plain_len, const uint8_t *pass, size_t pass_len, uint8_t cipher_id, uint8_t **out_bytes, size_t *out_len)` | Creates multi-slot container with slot 0. |
 | `lsec_multi_vault_open` | `int32_t lsec_multi_vault_open(const uint8_t *container, size_t container_len, const uint8_t *pass, size_t pass_len, lsec_protected_buffer_t **out_plain)` | Opens multi-slot container using matching active credential. |
 | `lsec_multi_vault_add_slot` | `int32_t lsec_multi_vault_add_slot(uint8_t *container, size_t container_len, const uint8_t *exist_pass, size_t exist_pass_len, const uint8_t *new_pass, size_t new_pass_len, uint8_t new_cipher_id, size_t *out_slot_index)` | Wraps DEK into first free slot under new credential. |
-| `lsec_multi_vault_remove_slot` | `int32_t lsec_multi_vault_remove_slot(uint8_t *container, size_t container_len, const uint8_t *exist_pass, size_t exist_pass_len, size_t slot_index)` | Zeroizes and deactivates specified slot index. |
+| `lsec_multi_vault_remove_slot` | `int32_t lsec_multi_vault_remove_slot(uint8_t *container, size_t container_len, const uint8_t *exist_pass, size_t exist_pass_len, size_t slot_index)` | Zeroises and deactivates specified slot index. |
 | `lsec_multi_vault_update_payload` | `int32_t lsec_multi_vault_update_payload(const uint8_t *container, size_t container_len, const uint8_t *exist_pass, size_t exist_pass_len, const uint8_t *new_plain, size_t new_plain_len, uint8_t **out_bytes, size_t *out_len)` | Fast payload update reusing DEK without Argon2 recomputation. |
 | `lsec_multi_vault_active_slots` | `int32_t lsec_multi_vault_active_slots(const uint8_t *container, size_t container_len, uint8_t *out_active_slots, size_t out_active_slots_len)` | Writes active flags for all 4 slots into destination slice. |
 | `lsec_vault_bytes_free` | `void lsec_vault_bytes_free(uint8_t *bytes, size_t len)` | Deallocates byte slice returned by vault functions. |
@@ -267,7 +267,7 @@ Idiomatic Go package using C-ABI bindings.
 | `NewZeroedBuffer` | `func NewZeroedBuffer(length int) (*Buffer, error)` | Allocates zero-filled locked buffer. |
 | `(*Buffer).Len` | `func (b *Buffer) Len() int` | Returns buffer byte count. |
 | `(*Buffer).Bytes` | `func (b *Buffer) Bytes() []byte` | Returns copy of protected memory. |
-| `(*Buffer).Wipe` | `func (b *Buffer) Wipe() error` | Zeroizes buffer contents immediately. |
+| `(*Buffer).Wipe` | `func (b *Buffer) Wipe() error` | Zeroises buffer contents immediately. |
 | `(*Buffer).Free` | `func (b *Buffer) Free()` | Unlocks and frees memory, unregistering finalizer. |
 | `Seal` | `func Seal(plaintext, passphrase []byte, cipher CipherSuite) ([]byte, error)` | Encrypts payload into binary envelope bytes. |
 | `Unseal` | `func Unseal(vaultBytes, passphrase []byte) (*Buffer, error)` | Decrypts binary envelope into a protected buffer. |
@@ -277,7 +277,7 @@ Idiomatic Go package using C-ABI bindings.
 | `MultiVaultCreate` | `func MultiVaultCreate(payload, passphrase []byte, cipher CipherSuite) ([]byte, error)` | Generates 256-bit DEK and creates a multi-slot container. |
 | `MultiVaultOpen` | `func MultiVaultOpen(container, passphrase []byte) (*Buffer, error)` | Unwraps DEK and decrypts payload into a protected buffer. |
 | `MultiVaultAddSlot` | `func MultiVaultAddSlot(container []byte, existingPassphrase, newPassphrase []byte, cipher CipherSuite) (int, error)` | Wraps DEK into first free slot under new credential. |
-| `MultiVaultRemoveSlot` | `func MultiVaultRemoveSlot(container []byte, existingPassphrase []byte, slotIndex int) error` | Zeroizes and deactivates specified slot index. |
+| `MultiVaultRemoveSlot` | `func MultiVaultRemoveSlot(container []byte, existingPassphrase []byte, slotIndex int) error` | Zeroises and deactivates specified slot index. |
 | `MultiVaultUpdatePayload` | `func MultiVaultUpdatePayload(container []byte, existingPassphrase, newPayload []byte) ([]byte, error)` | Fast payload update reusing existing DEK. |
 | `MultiVaultActiveSlots` | `func MultiVaultActiveSlots(container []byte) ([4]bool, error)` | Returns active status flags for all 4 slots. |
 | `DecodeBase32` | `func DecodeBase32(base32Secret string) (*Buffer, error)` | Decodes Base32 secret string into protected buffer. |
@@ -294,7 +294,7 @@ Zero-dependency JavaScript and TypeScript SDK for Node.js, browsers and offline 
 
 | Function | Signature | Description |
 | :--- | :--- | :--- |
-| `init` | `async function init(wasmSource?: BufferSource \| Response): Promise<void>` | Compiles and initializes WebAssembly runtime module. |
+| `init` | `async function init(wasmSource?: BufferSource \| Response): Promise<void>` | Compiles and initialises WebAssembly runtime module. |
 | `version` | `function version(): { major: number, minor: number, patch: number }` | Returns loaded Wasm binary version numbers. |
 
 ### Classes & Methods
@@ -311,7 +311,7 @@ Zero-dependency JavaScript and TypeScript SDK for Node.js, browsers and offline 
 | `MultiSlotVault.create` | `static create(payload: BinarySource, passphrase: BinarySource, cipher?: string): Uint8Array` | Creates multi-slot container with slot 0. |
 | `MultiSlotVault.open` | `static open(container: BinarySource, passphrase: BinarySource): Buffer` | Opens multi-slot container using active credential. |
 | `MultiSlotVault.addSlot` | `static addSlot(container: Uint8Array, existingPassphrase: BinarySource, newPassphrase: BinarySource, cipher?: string): number` | Wraps DEK into first free slot under new credential. |
-| `MultiSlotVault.removeSlot` | `static removeSlot(container: Uint8Array, existingPassphrase: BinarySource, slotIndex: number): void` | Zeroizes and disables targeted slot. |
+| `MultiSlotVault.removeSlot` | `static removeSlot(container: Uint8Array, existingPassphrase: BinarySource, slotIndex: number): void` | Zeroises and disables targeted slot. |
 | `MultiSlotVault.updatePayload` | `static updatePayload(container: BinarySource, existingPassphrase: BinarySource, newPayload: BinarySource): Uint8Array` | Fast payload update reusing existing DEK. |
 | `MultiSlotVault.activeSlots` | `static activeSlots(container: BinarySource): [boolean, boolean, boolean, boolean]` | Returns active flags for all 4 slots. |
 | `TOTP.decodeBase32` | `static decodeBase32(base32Str: string): Buffer` | Decodes Base32 secret into protected buffer. |
@@ -345,8 +345,8 @@ checkout), then the system loader.
 | `view` | `view() -> memoryview` | Zero-copy writable view onto locked memory. |
 | `write` | `write(data, offset: int = 0) -> None` | Copies data into the buffer at an offset. |
 | `to_bytes` | `to_bytes() -> bytes` | Unlocked, unwipeable Python copy of the contents. |
-| `wipe` | `wipe() -> None` | Zeroizes contents in place. |
-| `free` / `close` | `free() -> None` | Zeroizes, unlocks and releases; waits for in-flight native calls and defers release while views are alive. |
+| `wipe` | `wipe() -> None` | Zeroises contents in place. |
+| `free` / `close` | `free() -> None` | Zeroises, unlocks and releases; waits for in-flight native calls and defers release while views are alive. |
 | `closed` | `closed: bool` | Whether the buffer has been freed. |
 
 Also supports `len()` and the context manager protocol (frees on exit).
@@ -362,7 +362,7 @@ Also supports `len()` and the context manager protocol (frees on exit).
 | `MultiSlotVault.create` | `MultiSlotVault.create(plaintext, passphrase, cipher=...) -> bytes` | Creates a 4-slot container with passphrase in slot 0. |
 | `MultiSlotVault.open` | `MultiSlotVault.open(container, passphrase) -> SecureBuffer` | Decrypts a multi-slot container into locked memory. |
 | `MultiSlotVault.add_slot` | `MultiSlotVault.add_slot(container, existing_pass, new_pass, cipher=...) -> int` | Adds a passphrase slot in place (`bytearray`/`memoryview`) and returns slot index. |
-| `MultiSlotVault.remove_slot` | `MultiSlotVault.remove_slot(container, existing_pass, slot_index) -> None` | Zeroizes and disables the targeted slot in place. |
+| `MultiSlotVault.remove_slot` | `MultiSlotVault.remove_slot(container, existing_pass, slot_index) -> None` | Zeroises and disables the targeted slot in place. |
 | `MultiSlotVault.update_payload` | `MultiSlotVault.update_payload(container, existing_pass, new_payload) -> bytes` | Re-encrypts payload reusing the existing DEK; returns a new `bytes` container (not in-place). |
 | `MultiSlotVault.active_slots` | `MultiSlotVault.active_slots(container) -> tuple[bool, bool, bool, bool]` | Returns active flags for all 4 slots. |
 
