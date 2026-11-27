@@ -9,7 +9,7 @@ import (
 
 func TestVersion(t *testing.T) {
 	maj, min, patch := Version()
-	if maj != 0 || min != 2 || patch != 0 {
+	if maj != 0 || min != 3 || patch != 0 {
 		t.Fatalf("unexpected version: %d.%d.%d", maj, min, patch)
 	}
 }
