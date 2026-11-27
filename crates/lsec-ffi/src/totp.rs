@@ -80,7 +80,7 @@ pub unsafe extern "C" fn lsec_totp_generate(
             return LSEC_ERR_NULL_POINTER;
         }
 
-        if out_code_capacity < (digits as usize + 1) {
+        if out_code_capacity <= digits as usize {
             return LSEC_ERR_BUFFER_TOO_SMALL;
         }
 
