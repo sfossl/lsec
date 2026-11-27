@@ -1,7 +1,7 @@
-use aes_gcm::{Aes256Gcm, Key as AesKey, Nonce as AesNonce};
-use chacha20poly1305::aead::{Aead, KeyInit, Payload};
-use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
-use zeroize::Zeroize;
+use aes_gcm::Aes256Gcm;
+use chacha20poly1305::aead::{Aead, KeyInit, Nonce as AeadNonce, Payload};
+use chacha20poly1305::ChaCha20Poly1305;
+use zeroize::Zeroizing;
 
 use super::error::CryptoError;
 use crate::config::{DEFAULT_KEY_LEN_BYTES, DEFAULT_NONCE_LEN_BYTES, DEFAULT_TAG_LEN_BYTES};
@@ -13,55 +13,7 @@ pub fn generate_nonce() -> Result<[u8; DEFAULT_NONCE_LEN_BYTES], CryptoError> {
     Ok(nonce)
 }
 
-pub fn encrypt_chacha20(key: &[u8], plaintext: &[u8], aad: &[u8]) -> Result<Vec<u8>, CryptoError> {
-    if key.len() != DEFAULT_KEY_LEN_BYTES {
-        return Err(CryptoError::InvalidKeyLength(key.len()));
-    }
-
-    let nonce_bytes = generate_nonce()?;
-    let cipher = ChaCha20Poly1305::new(Key::from_slice(key));
-    let payload = Payload {
-        msg: plaintext,
-        aad,
-    };
-
-    let ciphertext = cipher
-        .encrypt(Nonce::from_slice(&nonce_bytes), payload)
-        .map_err(|_| CryptoError::EncryptionFailed)?;
-
-    let mut output = Vec::with_capacity(DEFAULT_NONCE_LEN_BYTES + ciphertext.len());
-    output.extend_from_slice(&nonce_bytes);
-    output.extend_from_slice(&ciphertext);
-    Ok(output)
-}
-
-pub fn decrypt_chacha20(
-    key: &[u8],
-    ciphertext: &[u8],
-    aad: &[u8],
-) -> Result<ProtectedBuffer, CryptoError> {
-    if key.len() != DEFAULT_KEY_LEN_BYTES {
-        return Err(CryptoError::InvalidKeyLength(key.len()));
-    }
-
-    if ciphertext.len() < DEFAULT_NONCE_LEN_BYTES + DEFAULT_TAG_LEN_BYTES {
-        return Err(CryptoError::InvalidCiphertextLength);
-    }
-
-    let (nonce_slice, enc_body) = ciphertext.split_at(DEFAULT_NONCE_LEN_BYTES);
-    let cipher = ChaCha20Poly1305::new(Key::from_slice(key));
-    let payload = Payload { msg: enc_body, aad };
-
-    let mut decrypted = cipher
-        .decrypt(Nonce::from_slice(nonce_slice), payload)
-        .map_err(|_| CryptoError::DecryptionFailed)?;
-
-    let protected = ProtectedBuffer::new(&decrypted)?;
-    decrypted.zeroize();
-    Ok(protected)
-}
-
-pub fn encrypt_aes256_gcm(
+fn encrypt_aead<C: Aead + KeyInit>(
     key: &[u8],
     plaintext: &[u8],
     aad: &[u8],
@@ -71,14 +23,14 @@ pub fn encrypt_aes256_gcm(
     }
 
     let nonce_bytes = generate_nonce()?;
-    let cipher = Aes256Gcm::new(AesKey::<Aes256Gcm>::from_slice(key));
+    let cipher = C::new_from_slice(key).map_err(|_| CryptoError::InvalidKeyLength(key.len()))?;
     let payload = Payload {
         msg: plaintext,
         aad,
     };
 
     let ciphertext = cipher
-        .encrypt(AesNonce::from_slice(&nonce_bytes), payload)
+        .encrypt(AeadNonce::<C>::from_slice(&nonce_bytes), payload)
         .map_err(|_| CryptoError::EncryptionFailed)?;
 
     let mut output = Vec::with_capacity(DEFAULT_NONCE_LEN_BYTES + ciphertext.len());
@@ -87,7 +39,7 @@ pub fn encrypt_aes256_gcm(
     Ok(output)
 }
 
-pub fn decrypt_aes256_gcm(
+fn decrypt_aead<C: Aead + KeyInit>(
     key: &[u8],
     ciphertext: &[u8],
     aad: &[u8],
@@ -101,16 +53,44 @@ pub fn decrypt_aes256_gcm(
     }
 
     let (nonce_slice, enc_body) = ciphertext.split_at(DEFAULT_NONCE_LEN_BYTES);
-    let cipher = Aes256Gcm::new(AesKey::<Aes256Gcm>::from_slice(key));
+    let cipher = C::new_from_slice(key).map_err(|_| CryptoError::InvalidKeyLength(key.len()))?;
     let payload = Payload { msg: enc_body, aad };
 
-    let mut decrypted = cipher
-        .decrypt(AesNonce::from_slice(nonce_slice), payload)
-        .map_err(|_| CryptoError::DecryptionFailed)?;
+    let decrypted = Zeroizing::new(
+        cipher
+            .decrypt(AeadNonce::<C>::from_slice(nonce_slice), payload)
+            .map_err(|_| CryptoError::DecryptionFailed)?,
+    );
 
-    let protected = ProtectedBuffer::new(&decrypted)?;
-    decrypted.zeroize();
-    Ok(protected)
+    Ok(ProtectedBuffer::new(&decrypted)?)
+}
+
+pub fn encrypt_chacha20(key: &[u8], plaintext: &[u8], aad: &[u8]) -> Result<Vec<u8>, CryptoError> {
+    encrypt_aead::<ChaCha20Poly1305>(key, plaintext, aad)
+}
+
+pub fn decrypt_chacha20(
+    key: &[u8],
+    ciphertext: &[u8],
+    aad: &[u8],
+) -> Result<ProtectedBuffer, CryptoError> {
+    decrypt_aead::<ChaCha20Poly1305>(key, ciphertext, aad)
+}
+
+pub fn encrypt_aes256_gcm(
+    key: &[u8],
+    plaintext: &[u8],
+    aad: &[u8],
+) -> Result<Vec<u8>, CryptoError> {
+    encrypt_aead::<Aes256Gcm>(key, plaintext, aad)
+}
+
+pub fn decrypt_aes256_gcm(
+    key: &[u8],
+    ciphertext: &[u8],
+    aad: &[u8],
+) -> Result<ProtectedBuffer, CryptoError> {
+    decrypt_aead::<Aes256Gcm>(key, ciphertext, aad)
 }
 
 #[cfg(test)]
