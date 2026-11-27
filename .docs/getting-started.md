@@ -2,7 +2,7 @@
 
 # Getting Started
 
-`lsec` is a defense-in-depth local security engine providing page-locked memory, anti-dump guarantees, envelope vault encryption and replay-resistant TOTP verification.
+`lsec` is a defence-in-depth local security engine providing page-locked memory, anti-dump guarantees, envelope vault encryption and replay-resistant TOTP verification.
 
 ### Documentation Guides
 [Getting Started](getting-started.md) | [Memory Guard](memguard.md) | [Vault](vault.md) | [TOTP](totp.md) | [C Integration](c-integration.md) | [Go Integration](go-integration.md) | [WebAssembly](wasm-integration.md) | [Python Integration](python-integration.md) | [API Reference](api-reference.md)
@@ -30,12 +30,12 @@ Build or link against the `liblsec_ffi` shared library.
 
 ### JavaScript and WebAssembly Projects
 
-Import the package and initialize the Wasm runtime:
+Import the package and initialise the Wasm runtime:
 
 ```javascript
 import { init, Buffer, Vault, TOTP } from '@sfossl/lsec';
 
-// initialize with platform entropy
+// initialise with platform entropy
 await init();
 ```
 
@@ -128,7 +128,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Configuration
 
-Security parameter limits can be customized using `SecurityConfigBuilder`:
+Security parameter limits can be customised using `SecurityConfigBuilder`:
 
 ```rust
 use lsec_core::config::SecurityConfig;
@@ -150,7 +150,7 @@ let custom_config = SecurityConfig::builder()
 | Context | Destination | Description |
 | :--- | :--- | :--- |
 | **Previous** | [Docs Overview](../README.md#documentation) | Root architecture and package matrix |
-| **Next** | [Memory Guard](memguard.md) | Page-locked memory and zeroization deep dive |
+| **Next** | [Memory Guard](memguard.md) | Page-locked memory and zeroisation deep dive |
 | **API Reference** | [API Reference](api-reference.md) | Parameter limits, structs and C-ABI codes |
 | **Integrations** | [Go Integration](go-integration.md) | Using lsec from Go via CGo |
 | **Integrations** | [Python Integration](python-integration.md) | Using lsec from Python via ctypes |
