@@ -12,14 +12,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             target: x86_64-unknown-linux-gnu
             lib: liblsec_ffi.so
-            plat: manylinux_2_17_x86_64
+            plat: manylinux_2_39_x86_64
           - os: ubuntu-24.04-arm
             target: aarch64-unknown-linux-gnu
             lib: liblsec_ffi.so
-            plat: manylinux_2_17_aarch64
+            plat: manylinux_2_39_aarch64
           - os: macos-latest
             target: aarch64-apple-darwin
             lib: liblsec_ffi.dylib
@@ -83,4 +83,9 @@ jobs:
         with:
           path: dist
           merge-multiple: true
+      - name: Verify distributions and checksums
+        run: |
+          python -m pip install --upgrade twine
+          twine check dist/*
+          sha256sum dist/*
       - uses: pypa/gh-action-pypi-publish@release/v1
