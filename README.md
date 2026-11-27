@@ -1,6 +1,6 @@
 ## Overview
 
-`lsec` is a defense-in-depth local security engine providing page-locked memory, stack-allocated zeroizing arrays, process dump suppression, multi-slot envelope vault encryption and replay-resistant TOTP verification.
+`lsec` is a defence-in-depth local security engine providing page-locked memory, stack-allocated zeroising arrays, process dump suppression, multi-slot envelope vault encryption and replay-resistant TOTP verification.
 
 Most software relies on default heap memory and unauthenticated local file storage. This leaves sensitive material vulnerable to memory swapping, crash dumps and unauthenticated file tampering. `lsec` provides low-level memory isolation and cryptographic storage primitives to protect credentials, keys and tokens throughout their local lifecycle across desktop, CLI and offline WebAssembly environments.
 
@@ -44,7 +44,7 @@ pip install -e bindings/python
 
 ## Architecture
 
-`lsec` is organized as a modular Rust workspace exposing C-ABI and WebAssembly boundaries for native and web runtimes.
+`lsec` is organised as a modular Rust workspace exposing C-ABI and WebAssembly boundaries for native and web runtimes.
 
 ### Package Matrix
 
@@ -61,7 +61,7 @@ pip install -e bindings/python
 
 | Capability | Module | Mechanism |
 | :--- | :--- | :--- |
-| Memory Guard | `memguard` | OS page alignment, RAM pinning (`mlock`/`VirtualLock`), `ProtectedArray<N>` stack zeroization and `MADV_DONTDUMP`. |
+| Memory Guard | `memguard` | OS page alignment, RAM pinning (`mlock`/`VirtualLock`), `ProtectedArray<N>` stack zeroisation and `MADV_DONTDUMP`. |
 | Multi-Slot Vault | `vault` | LUKS-style 4-slot container separating DEK from KEKs, sub-millisecond fast updates and multi-credential unlock. |
 | Envelope Vault | `vault` | Argon2id key derivation, ChaCha20-Poly1305 / AES-256-GCM AEAD, binary headers and atomic file replace. |
 | Process Hardening | `process` | OS-level anti-dump guarantees (`PR_SET_DUMPABLE`), error box suppression and anti-debugging controls. |
@@ -255,16 +255,16 @@ The `lsec` project consists of the following official components:
 | Memory Dump Exclusion | Linux `MADV_DONTDUMP` excludes secret buffers from core dumps. |
 | Swap File Prevention | `mlock` (POSIX) and `VirtualLock` (Windows) pin allocations to physical RAM. |
 | Page-Aligned Isolation | Page-boundary alignment prevents cross-buffer unlocking races. |
-| Deterministic Zeroization | Volatile writes and compiler fences prevent dead-store elimination on wipe. |
+| Deterministic Zeroisation | Volatile writes and compiler fences prevent dead-store elimination on wipe. |
 | Atomic File Writes | Temporary file swap ensures atomic replacement with `0600` permissions. |
-| DoS Parameter Bounds | Hard upper bounds on Argon2id iterations, memory and lanes during envelope deserialization. |
+| DoS Parameter Bounds | Hard upper bounds on Argon2id iterations, memory and lanes during envelope deserialisation. |
 
 ### Performance Profile
 
 | Operation | Characteristic | Allocations |
 | :--- | :--- | :--- |
 | Page-Locked Allocation | Direct page alignment and memory pin | 1 OS page mapping |
-| Buffer Zeroization | Volatile memory wipe and unlock on drop | 0 heap allocations |
+| Buffer Zeroisation | Volatile memory wipe and unlock on drop | 0 heap allocations |
 | Argon2id Key Derivation | Calibrated passes and memory lanes | Bounded KDF buffer |
 | TOTP Code Generation | Stack-allocated HMAC and constant-time reduction | 0 heap allocations |
 
@@ -286,7 +286,7 @@ The `lsec` project consists of the following official components:
 | Guide | Description |
 | :--- | :--- |
 | [Getting Started](.docs/getting-started.md) | Package installation, quickstarts and configuration overrides |
-| [Memory Guard](.docs/memguard.md) | Page-aligned memory, RAM pinning, anti-dump and deterministic zeroization |
+| [Memory Guard](.docs/memguard.md) | Page-aligned memory, RAM pinning, anti-dump and deterministic zeroisation |
 | [Vault Storage](.docs/vault.md) | Binary envelope header format, Argon2id KDF bounds and atomic file replace |
 | [TOTP Authentication](.docs/totp.md) | RFC 6238 counter logic, strict RFC 4648 Base32 padding and constant-time verification |
 | [C Integration](.docs/c-integration.md) | Header exports, compiler flags and memory management rules |
