@@ -4,16 +4,12 @@ use std::io::Error as IoError;
 #[derive(Debug)]
 pub enum ProcessError {
     SyscallFailed(IoError),
-    UnsupportedPlatform,
 }
 
 impl fmt::Display for ProcessError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::SyscallFailed(err) => write!(f, "process hardening syscall failed: {}", err),
-            Self::UnsupportedPlatform => {
-                write!(f, "process hardening is not supported on this platform")
-            }
         }
     }
 }
