@@ -149,7 +149,10 @@ class LoadedLibraryTests(unittest.TestCase):
         self.assertIs(lsec.load_library(), lsec.load_library())
 
     def test_version_matches_workspace(self):
-        self.assertEqual(lsec.version(), (0, 1, 0))
+        self.assertEqual(lsec.version(), (0, 2, 0))
+
+    def test_harden_process(self):
+        lsec.harden_process()
 
 
 if __name__ == "__main__":
