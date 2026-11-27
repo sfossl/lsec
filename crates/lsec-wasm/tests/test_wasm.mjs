@@ -29,14 +29,12 @@ const exports = instance.exports;
 
 console.log('wasm: instantiated successfully');
 
-// version and readiness
 assert.strictEqual(exports.lsec_wasm_is_ready(), 1);
 assert.strictEqual(exports.lsec_wasm_version_major(), 0);
-assert.strictEqual(exports.lsec_wasm_version_minor(), 1);
+assert.strictEqual(exports.lsec_wasm_version_minor(), 3);
 assert.strictEqual(exports.lsec_wasm_version_patch(), 0);
 console.log('wasm: readiness and version tests passed');
 
-// helper functions
 function writeBytes(bytes) {
   const ptr = exports.lsec_wasm_alloc(bytes.length);
   assert.notStrictEqual(ptr, 0);
@@ -50,7 +48,6 @@ function readBytes(ptr, len) {
   return new Uint8Array(mem);
 }
 
-// memory lifecycle
 {
   const size = 32;
   const ptr = exports.lsec_wasm_alloc(size);
@@ -62,7 +59,6 @@ function readBytes(ptr, len) {
   console.log('wasm: linear memory alloc and wipe_and_free passed');
 }
 
-// protected buffer lifecycle
 {
   const secret = new TextEncoder().encode('offline-pwa-secret-seed');
   const secretPtr = writeBytes(secret);
@@ -84,11 +80,10 @@ function readBytes(ptr, len) {
   assert.deepStrictEqual(wiped, new Uint8Array(len));
 
   exports.lsec_wasm_buffer_free(handle);
-  exports.lsec_wasm_free(secretPtr, secret.length);
+  exports.lsec_wasm_wipe_and_free(secretPtr, secret.length);
   console.log('wasm: protected buffer lifecycle passed');
 }
 
-// vault seal and unseal (PWA offline database encryption)
 {
   const plaintext = new TextEncoder().encode('offline-local-account-credentials');
   const passphrase = new TextEncoder().encode('super-strong-user-passphrase');
@@ -102,7 +97,7 @@ function readBytes(ptr, len) {
     plaintext.length,
     passPtr,
     passphrase.length,
-    1, // ChaCha20Poly1305
+    1,
     outLenPtr
   );
   assert.notStrictEqual(sealedPtr, 0);
@@ -128,13 +123,95 @@ function readBytes(ptr, len) {
 
   exports.lsec_wasm_vault_bytes_free(sealedPtr, sealedLen);
   exports.lsec_wasm_buffer_free(unsealHandle);
-  exports.lsec_wasm_free(plainPtr, plaintext.length);
-  exports.lsec_wasm_free(passPtr, passphrase.length);
+  exports.lsec_wasm_wipe_and_free(plainPtr, plaintext.length);
+  exports.lsec_wasm_wipe_and_free(passPtr, passphrase.length);
   exports.lsec_wasm_free(outLenPtr, 4);
   console.log('wasm: vault seal and unseal roundtrip passed');
 }
 
-// totp flow
+{
+  const payload = new TextEncoder().encode('wasm-multi-vault-payload');
+  const pass0 = new TextEncoder().encode('wasm-primary-passphrase');
+  const pass1 = new TextEncoder().encode('wasm-recovery-passphrase');
+  const updatedPayload = new TextEncoder().encode('wasm-updated-multi-vault-payload');
+
+  const payloadPtr = writeBytes(payload);
+  const pass0Ptr = writeBytes(pass0);
+  const pass1Ptr = writeBytes(pass1);
+  const updatedPayloadPtr = writeBytes(updatedPayload);
+  const outLenPtr = exports.lsec_wasm_alloc(4);
+  const slotsPtr = exports.lsec_wasm_alloc(4);
+
+  const containerPtr = exports.lsec_wasm_multi_vault_create(
+    payloadPtr,
+    payload.length,
+    pass0Ptr,
+    pass0.length,
+    1,
+    outLenPtr
+  );
+  assert.notStrictEqual(containerPtr, 0);
+
+  const containerLen = new DataView(exports.memory.buffer, outLenPtr, 4).getUint32(0, true);
+  assert.ok(containerLen >= 367);
+
+  assert.strictEqual(exports.lsec_wasm_multi_vault_active_slots(containerPtr, containerLen, slotsPtr), 0);
+  assert.deepStrictEqual(readBytes(slotsPtr, 4), new Uint8Array([1, 0, 0, 0]));
+
+  const slotIdx = exports.lsec_wasm_multi_vault_add_slot(
+    containerPtr,
+    containerLen,
+    pass0Ptr,
+    pass0.length,
+    pass1Ptr,
+    pass1.length,
+    2
+  );
+  assert.strictEqual(slotIdx, 1);
+
+  const openHandle = exports.lsec_wasm_multi_vault_open(
+    containerPtr,
+    containerLen,
+    pass1Ptr,
+    pass1.length
+  );
+  assert.notStrictEqual(openHandle, 0);
+  const openLen = exports.lsec_wasm_buffer_len(openHandle);
+  assert.deepStrictEqual(readBytes(exports.lsec_wasm_buffer_data(openHandle), openLen), payload);
+  exports.lsec_wasm_buffer_free(openHandle);
+
+  const updatedPtr = exports.lsec_wasm_multi_vault_update_payload(
+    containerPtr,
+    containerLen,
+    pass0Ptr,
+    pass0.length,
+    updatedPayloadPtr,
+    updatedPayload.length,
+    outLenPtr
+  );
+  assert.notStrictEqual(updatedPtr, 0);
+  const updatedLen = new DataView(exports.memory.buffer, outLenPtr, 4).getUint32(0, true);
+
+  assert.strictEqual(
+    exports.lsec_wasm_multi_vault_remove_slot(updatedPtr, updatedLen, pass0Ptr, pass0.length, 1),
+    0
+  );
+  assert.strictEqual(
+    exports.lsec_wasm_multi_vault_open(updatedPtr, updatedLen, pass1Ptr, pass1.length),
+    0
+  );
+
+  exports.lsec_wasm_vault_bytes_free(containerPtr, containerLen);
+  exports.lsec_wasm_vault_bytes_free(updatedPtr, updatedLen);
+  exports.lsec_wasm_wipe_and_free(payloadPtr, payload.length);
+  exports.lsec_wasm_wipe_and_free(pass0Ptr, pass0.length);
+  exports.lsec_wasm_wipe_and_free(pass1Ptr, pass1.length);
+  exports.lsec_wasm_wipe_and_free(updatedPayloadPtr, updatedPayload.length);
+  exports.lsec_wasm_free(outLenPtr, 4);
+  exports.lsec_wasm_free(slotsPtr, 4);
+  console.log('wasm: multi-vault lifecycle passed');
+}
+
 {
   const base32Seed = new TextEncoder().encode('JBSWY3DPEHPK3PXP');
   const b32Ptr = writeBytes(base32Seed);
@@ -154,7 +231,7 @@ function readBytes(ptr, len) {
     timestamp,
     30n,
     6,
-    0, // Sha1
+    0,
     codeOutPtr,
     8
   );
@@ -173,16 +250,15 @@ function readBytes(ptr, len) {
     timestamp,
     30n,
     6,
-    1, // 1 step drift
-    0  // Sha1
+    1,
+    0
   );
   assert.strictEqual(valid, 1);
 
   exports.lsec_wasm_buffer_free(seedHandle);
-  exports.lsec_wasm_free(b32Ptr, base32Seed.length);
-  exports.lsec_wasm_free(codeOutPtr, 8);
+  exports.lsec_wasm_wipe_and_free(b32Ptr, base32Seed.length);
+  exports.lsec_wasm_wipe_and_free(codeOutPtr, 8);
   console.log('wasm: totp decode, generate, verify passed');
 }
 
 console.log('all wasm integration tests passed successfully.');
-
