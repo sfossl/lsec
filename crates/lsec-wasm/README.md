@@ -1,23 +1,35 @@
 ## Overview
 
-`lsec-wasm` is the freestanding WebAssembly compilation target for the `lsec` defense-in-depth security engine. It exposes zero-dependency cryptographic operations, vault encryption and TOTP verification directly in linear WebAssembly memory for browser, progressive web app and edge runtime execution.
+`lsec-wasm` is the freestanding WebAssembly compilation target for the `lsec` defence-in-depth security engine. It exposes zero-dependency cryptographic operations, vault encryption and TOTP verification directly in linear WebAssembly memory for browser, progressive web app and edge runtime execution.
 
 ## Exported Functions
 
 | Symbol | Signature | Role |
 | :--- | :--- | :--- |
-| `lsec_wasm_alloc` | `(size: u32) -> u32` | Allocates memory in WebAssembly linear heap |
-| `lsec_wasm_free` | `(ptr: u32, size: u32)` | Zeroizes and deallocates memory |
-| `lsec_wasm_vault_seal` | `(data_ptr, data_len, pass_ptr, pass_len, cipher) -> u32` | Encrypts payload into serialized envelope |
-| `lsec_wasm_vault_unseal` | `(cipher_ptr, cipher_len, pass_ptr, pass_len) -> u32` | Authenticates and decrypts single or multi-slot envelope |
-| `lsec_wasm_multi_vault_create` | `(data_ptr, data_len, pass_ptr, pass_len, cipher, out_len) -> u32` | Creates multi-slot container with slot 0 |
-| `lsec_wasm_multi_vault_open` | `(c_ptr, c_len, pass_ptr, pass_len) -> u32` | Unwraps DEK and decrypts payload into memory |
-| `lsec_wasm_multi_vault_add_slot` | `(c_ptr, c_len, exist_pass, exist_len, new_pass, new_len, cipher) -> i32` | Adds new credential slot to container |
-| `lsec_wasm_multi_vault_remove_slot` | `(c_ptr, c_len, exist_pass, exist_len, slot_idx) -> i32` | Zeroizes targeted slot |
-| `lsec_wasm_multi_vault_update_payload` | `(c_ptr, c_len, exist_pass, exist_len, plain_ptr, plain_len, out_len) -> u32` | Fast payload update reusing existing DEK |
-| `lsec_wasm_multi_vault_active_slots` | `(c_ptr, c_len, out_slots_ptr) -> i32` | Reads active status for all 4 slots |
-| `lsec_wasm_totp_generate` | `(secret_ptr, secret_len, step, digits, algo, time) -> u32` | Generates RFC 6238 token code |
-| `lsec_wasm_totp_verify` | `(secret_ptr, secret_len, step, digits, algo, token, time, skew) -> i32` | Constant-time TOTP verification |
+| `lsec_wasm_is_ready` | `() -> u32` | Returns readiness status |
+| `lsec_wasm_version_major` | `() -> u32` | Returns major ABI version |
+| `lsec_wasm_version_minor` | `() -> u32` | Returns minor ABI version |
+| `lsec_wasm_version_patch` | `() -> u32` | Returns patch ABI version |
+| `lsec_wasm_alloc` | `(size: usize) -> *mut u8` | Allocates memory in WebAssembly linear heap |
+| `lsec_wasm_free` | `(ptr: *mut u8, size: usize)` | Deallocates memory in WebAssembly linear heap |
+| `lsec_wasm_wipe_and_free` | `(ptr: *mut u8, size: usize)` | Zeroises and deallocates memory |
+| `lsec_wasm_buffer_new` | `(data: *const u8, len: usize) -> *mut LsecWasmBuffer` | Creates a protected buffer handle |
+| `lsec_wasm_buffer_free` | `(buf: *mut LsecWasmBuffer)` | Zeroises and frees a protected buffer handle |
+| `lsec_wasm_buffer_len` | `(buf: *const LsecWasmBuffer) -> usize` | Returns protected buffer byte length |
+| `lsec_wasm_buffer_data` | `(buf: *const LsecWasmBuffer) -> *const u8` | Returns pointer to protected buffer bytes |
+| `lsec_wasm_buffer_wipe` | `(buf: *mut LsecWasmBuffer) -> i32` | Zeroises protected buffer contents in place |
+| `lsec_wasm_vault_seal` | `(plaintext, plaintext_len, passphrase, passphrase_len, cipher_id, out_len) -> *mut u8` | Encrypts payload into serialised envelope |
+| `lsec_wasm_vault_unseal` | `(vault_bytes, vault_len, passphrase, passphrase_len) -> *mut LsecWasmBuffer` | Authenticates and decrypts single or multi-slot envelope |
+| `lsec_wasm_multi_vault_create` | `(plaintext, plaintext_len, passphrase, passphrase_len, cipher_id, out_len) -> *mut u8` | Creates multi-slot container with slot 0 |
+| `lsec_wasm_multi_vault_open` | `(container, container_len, passphrase, passphrase_len) -> *mut LsecWasmBuffer` | Unwraps DEK and decrypts payload into memory |
+| `lsec_wasm_multi_vault_add_slot` | `(container, container_len, existing_passphrase, existing_passphrase_len, new_passphrase, new_passphrase_len, new_cipher_id) -> i32` | Adds new credential slot to container |
+| `lsec_wasm_multi_vault_remove_slot` | `(container, container_len, existing_passphrase, existing_passphrase_len, slot_index) -> i32` | Zeroises targeted slot |
+| `lsec_wasm_multi_vault_update_payload` | `(container, container_len, existing_passphrase, existing_passphrase_len, new_payload, new_payload_len, out_len) -> *mut u8` | Updates payload reusing existing DEK |
+| `lsec_wasm_multi_vault_active_slots` | `(container, container_len, out_slots) -> i32` | Reads active status for all 4 slots |
+| `lsec_wasm_vault_bytes_free` | `(ptr: *mut u8, len: usize)` | Frees sealed vault byte allocations |
+| `lsec_wasm_totp_decode_base32` | `(base32_ptr, base32_len) -> *mut LsecWasmBuffer` | Decodes Base32 secret into protected buffer |
+| `lsec_wasm_totp_generate` | `(secret, secret_len, timestamp, step_seconds, digits, algorithm_id, out_code, out_code_capacity) -> i32` | Generates RFC 6238 token code |
+| `lsec_wasm_totp_verify` | `(secret, secret_len, candidate, candidate_len, timestamp, step_seconds, digits, drift_steps, algorithm_id) -> i32` | Performs constant-time TOTP verification |
 
 ## Installation
 
