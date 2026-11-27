@@ -37,6 +37,7 @@ Central configuration and security parameter limits.
 | `MIN_TOTP_DIGITS` | `6` | Minimum supported TOTP digits. |
 | `MAX_TOTP_DIGITS` | `8` | Maximum supported TOTP digits. |
 | `DEFAULT_TOTP_DRIFT_STEPS` | `1` | Allowed verification window drift steps (+/- 1 step). |
+| `DEFAULT_CLIPBOARD_TIMEOUT_SECONDS` | `15` | Default clipboard timeout constant in seconds. |
 
 ### Structs
 
@@ -49,6 +50,7 @@ Central configuration and security parameter limits.
   - `totp_step_seconds(seconds: u64) -> Self`
   - `totp_digits(digits: u32) -> Self`
   - `totp_drift_steps(steps: u8) -> Self`
+  - `clipboard_timeout_seconds(seconds: u64) -> Self`
   - `build(self) -> SecurityConfig`
 
 ---
@@ -170,7 +172,6 @@ Process-level security controls and anti-debugging primitives.
 ### `ProcessError`
 
 - `SyscallFailed(std::io::Error)`: Operating system refused hardening system call.
-- `UnsupportedPlatform`: Process hardening is not available on target architecture.
 
 ---
 
@@ -267,6 +268,7 @@ Idiomatic Go package using C-ABI bindings.
 | `NewZeroedBuffer` | `func NewZeroedBuffer(length int) (*Buffer, error)` | Allocates zero-filled locked buffer. |
 | `(*Buffer).Len` | `func (b *Buffer) Len() int` | Returns buffer byte count. |
 | `(*Buffer).Bytes` | `func (b *Buffer) Bytes() []byte` | Returns copy of protected memory. |
+| `(*Buffer).Write` | `func (b *Buffer) Write(data []byte, offset int) error` | Copies `data` into the locked buffer starting at `offset`. |
 | `(*Buffer).Wipe` | `func (b *Buffer) Wipe() error` | Zeroises buffer contents immediately. |
 | `(*Buffer).Free` | `func (b *Buffer) Free()` | Unlocks and frees memory, unregistering finalizer. |
 | `Seal` | `func Seal(plaintext, passphrase []byte, cipher CipherSuite) ([]byte, error)` | Encrypts payload into binary envelope bytes. |
@@ -294,23 +296,26 @@ Zero-dependency JavaScript and TypeScript SDK for Node.js, browsers and offline 
 
 | Function | Signature | Description |
 | :--- | :--- | :--- |
-| `init` | `async function init(wasmSource?: BufferSource \| Response): Promise<void>` | Compiles and initialises WebAssembly runtime module. |
+| `init` | `async function init(wasmSource?: BufferSource \| WebAssembly.Module \| Response): Promise<void>` | Compiles and initialises WebAssembly runtime module. |
 | `version` | `function version(): { major: number, minor: number, patch: number }` | Returns loaded Wasm binary version numbers. |
 
 ### Classes & Methods
 
 | Class / Method | Signature | Description |
 | :--- | :--- | :--- |
-| `new Buffer` | `constructor(data: Uint8Array \| number)` | Allocates locked buffer with initial data or zero length. |
+| `Buffer.from` | `static from(input: BinarySource): Buffer` | Copies `string`, `Uint8Array`, or `Buffer` into locked Wasm memory. |
+| `Buffer.alloc` | `static alloc(length: number): Buffer` | Allocates zero-filled locked Wasm buffer of `length` bytes. |
 | `Buffer.prototype.length` | `get length(): number` | Returns byte length of allocated buffer. |
+| `Buffer.prototype.rawHandle` | `get rawHandle(): number` | Returns underlying Wasm buffer handle pointer. |
 | `Buffer.prototype.bytes` | `bytes(): Uint8Array` | Returns copy of buffer contents. |
+| `Buffer.prototype.text` | `text(): string` | Decodes buffer contents as UTF-8 string. |
 | `Buffer.prototype.wipe` | `wipe(): void` | Overwrites buffer memory with zeros. |
 | `Buffer.prototype.free` | `free(): void` | Deallocates Wasm linear memory buffer. |
-| `Vault.seal` | `static seal(plaintext: Uint8Array, passphrase: Uint8Array, cipher?: number): Uint8Array` | Encrypts plaintext into binary vault envelope. |
-| `Vault.unseal` | `static unseal(vaultBytes: Uint8Array, passphrase: Uint8Array): Buffer` | Decrypts single-envelope or multi-slot vault into protected buffer. |
-| `MultiSlotVault.create` | `static create(payload: BinarySource, passphrase: BinarySource, cipher?: string): Uint8Array` | Creates multi-slot container with slot 0. |
+| `Vault.seal` | `static seal(plaintext: BinarySource, passphrase: BinarySource, cipher?: CipherAlgorithm): Uint8Array` | Encrypts plaintext into binary vault envelope. |
+| `Vault.unseal` | `static unseal(vaultBytes: BinarySource, passphrase: BinarySource): Buffer` | Decrypts single-envelope or multi-slot vault into protected buffer. |
+| `MultiSlotVault.create` | `static create(payload: BinarySource, passphrase: BinarySource, cipher?: CipherAlgorithm): Uint8Array` | Creates multi-slot container with slot 0. |
 | `MultiSlotVault.open` | `static open(container: BinarySource, passphrase: BinarySource): Buffer` | Opens multi-slot container using active credential. |
-| `MultiSlotVault.addSlot` | `static addSlot(container: Uint8Array, existingPassphrase: BinarySource, newPassphrase: BinarySource, cipher?: string): number` | Wraps DEK into first free slot under new credential. |
+| `MultiSlotVault.addSlot` | `static addSlot(container: Uint8Array, existingPassphrase: BinarySource, newPassphrase: BinarySource, cipher?: CipherAlgorithm): number` | Wraps DEK into first free slot under new credential. |
 | `MultiSlotVault.removeSlot` | `static removeSlot(container: Uint8Array, existingPassphrase: BinarySource, slotIndex: number): void` | Zeroises and disables targeted slot. |
 | `MultiSlotVault.updatePayload` | `static updatePayload(container: BinarySource, existingPassphrase: BinarySource, newPayload: BinarySource): Uint8Array` | Fast payload update reusing existing DEK. |
 | `MultiSlotVault.activeSlots` | `static activeSlots(container: BinarySource): [boolean, boolean, boolean, boolean]` | Returns active flags for all 4 slots. |
