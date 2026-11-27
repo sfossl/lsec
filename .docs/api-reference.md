@@ -5,7 +5,7 @@
 Complete reference of exported modules, constants, structs, C-ABI symbols and client SDKs.
 
 ### Documentation Guides
-[Getting Started](getting-started.md) | [Memory Guard](memguard.md) | [Vault](vault.md) | [TOTP](totp.md) | [C Integration](c-integration.md) | [Go Integration](go-integration.md) | [WebAssembly](wasm-integration.md) | [API Reference](api-reference.md)
+[Getting Started](getting-started.md) | [Memory Guard](memguard.md) | [Vault](vault.md) | [TOTP](totp.md) | [C Integration](c-integration.md) | [Go Integration](go-integration.md) | [WebAssembly](wasm-integration.md) | [Python Integration](python-integration.md) | [API Reference](api-reference.md)
 
 ## Module: `lsec-core::config`
 
@@ -330,6 +330,7 @@ Python `ctypes` binding over the C-ABI. Byte arguments accept `SecureBuffer`, `b
 | `load_library` | `load_library() -> ctypes.CDLL` | Locates and loads `lsec_ffi` once per process. |
 | `library_path` | `library_path() -> str` | Path of the loaded shared library. |
 | `version` | `version() -> tuple[int, int, int]` | Native library version as `(major, minor, patch)`. |
+| `harden_process` | `harden_process() -> None` | Enforces anti-debugging and core-dump exclusion on the current process. |
 
 Search order: `LSEC_LIB_PATH` (file or directory, exclusive when set), bundled `lsec/_lib/`, cargo
 `$CARGO_TARGET_DIR` / `target/release` / `target/debug` (only when running from the lsec source
@@ -358,6 +359,12 @@ Also supports `len()` and the context manager protocol (frees on exit).
 | `unseal` | `unseal(vault_bytes, passphrase) -> SecureBuffer` | Decrypts an envelope into locked memory. |
 | `seal_to_file` | `seal_to_file(path, plaintext, passphrase, cipher=...) -> None` | Atomically writes a sealed vault file. Paths containing NUL are rejected. |
 | `unseal_from_file` | `unseal_from_file(path, passphrase) -> SecureBuffer` | Reads and decrypts a vault file. |
+| `MultiSlotVault.create` | `MultiSlotVault.create(plaintext, passphrase, cipher=...) -> bytes` | Creates a 4-slot container with passphrase in slot 0. |
+| `MultiSlotVault.open` | `MultiSlotVault.open(container, passphrase) -> SecureBuffer` | Decrypts a multi-slot container into locked memory. |
+| `MultiSlotVault.add_slot` | `MultiSlotVault.add_slot(container, existing_pass, new_pass, cipher=...) -> int` | Adds a passphrase slot in place (`bytearray`/`memoryview`) and returns slot index. |
+| `MultiSlotVault.remove_slot` | `MultiSlotVault.remove_slot(container, existing_pass, slot_index) -> None` | Zeroizes and disables the targeted slot in place. |
+| `MultiSlotVault.update_payload` | `MultiSlotVault.update_payload(container, existing_pass, new_payload) -> bytes` | Re-encrypts payload reusing the existing DEK; returns a new `bytes` container (not in-place). |
+| `MultiSlotVault.active_slots` | `MultiSlotVault.active_slots(container) -> tuple[bool, bool, bool, bool]` | Returns active flags for all 4 slots. |
 
 `CipherSuite`: `CHACHA20_POLY1305 = 1`, `AES256_GCM = 2`.
 
