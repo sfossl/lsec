@@ -5,7 +5,7 @@
 `bindings/js` provides a zero-dependency TypeScript and JavaScript SDK running on top of `lsec-wasm`.
 
 ### Documentation Guides
-[Getting Started](getting-started.md) | [Memory Guard](memguard.md) | [Vault](vault.md) | [TOTP](totp.md) | [C Integration](c-integration.md) | [Go Integration](go-integration.md) | [WebAssembly](wasm-integration.md) | [API Reference](api-reference.md)
+[Getting Started](getting-started.md) | [Memory Guard](memguard.md) | [Vault](vault.md) | [TOTP](totp.md) | [C Integration](c-integration.md) | [Go Integration](go-integration.md) | [WebAssembly](wasm-integration.md) | [Python Integration](python-integration.md) | [API Reference](api-reference.md)
 
 ## Building the Wasm Target
 
@@ -67,6 +67,6 @@ Because WebAssembly runs in linear memory without automatic host garbage collect
 | Context | Destination | Description |
 | :--- | :--- | :--- |
 | **Previous** | [Go Integration](go-integration.md) | CGo package and runtime safety |
-| **Next** | [API Reference](api-reference.md) | Complete signatures, constants and error codes |
+| **Next** | [Python Integration](python-integration.md) | Python ctypes bindings and buffer lifecycle |
 | **API Reference** | [API Reference: JS SDK](api-reference.md#module-bindingsjs) | JavaScript class definitions and static helpers |
 | **Source Code** | [`index.js`](../bindings/js/index.js) | ESM loader and buffer classes |

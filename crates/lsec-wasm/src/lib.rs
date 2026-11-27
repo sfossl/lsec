@@ -25,7 +25,7 @@ pub extern "C" fn lsec_wasm_version_major() -> u32 {
 
 #[no_mangle]
 pub extern "C" fn lsec_wasm_version_minor() -> u32 {
-    2
+    3
 }
 
 #[no_mangle]
@@ -35,50 +35,54 @@ pub extern "C" fn lsec_wasm_version_patch() -> u32 {
 
 #[no_mangle]
 pub unsafe extern "C" fn lsec_wasm_alloc(size: usize) -> *mut u8 {
-    if size == 0 {
-        return core::ptr::null_mut();
-    }
-    let layout = match Layout::from_size_align(size, 8) {
-        Ok(l) => l,
-        Err(_) => return core::ptr::null_mut(),
-    };
-    unsafe { alloc(layout) }
+    let result = catch_unwind(|| {
+        if size == 0 {
+            return core::ptr::null_mut();
+        }
+        let layout = match Layout::from_size_align(size, 1) {
+            Ok(l) => l,
+            Err(_) => return core::ptr::null_mut(),
+        };
+        unsafe { alloc(layout) }
+    });
+
+    result.unwrap_or(core::ptr::null_mut())
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn lsec_wasm_free(ptr: *mut u8, size: usize) {
-    if ptr.is_null() || size == 0 {
-        return;
-    }
-    if let Ok(layout) = Layout::from_size_align(size, 8) {
-        unsafe {
-            dealloc(ptr, layout);
+    let _ = catch_unwind(|| {
+        if ptr.is_null() || size == 0 {
+            return;
         }
-    }
+        if let Ok(layout) = Layout::from_size_align(size, 1) {
+            unsafe {
+                dealloc(ptr, layout);
+            }
+        }
+    });
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn lsec_wasm_wipe_and_free(ptr: *mut u8, size: usize) {
-    if ptr.is_null() || size == 0 {
-        return;
-    }
-    let s = unsafe { slice::from_raw_parts_mut(ptr, size) };
-    s.zeroize();
-    unsafe {
-        lsec_wasm_free(ptr, size);
-    }
+    let _ = catch_unwind(|| {
+        if ptr.is_null() || size == 0 {
+            return;
+        }
+        let s = unsafe { slice::from_raw_parts_mut(ptr, size) };
+        s.zeroize();
+        unsafe {
+            lsec_wasm_free(ptr, size);
+        }
+    });
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn lsec_wasm_buffer_new(data: *const u8, len: usize) -> *mut LsecWasmBuffer {
     let result = catch_unwind(|| {
-        let s = if len == 0 {
-            &[][..]
-        } else {
-            if data.is_null() {
-                return core::ptr::null_mut();
-            }
-            unsafe { slice::from_raw_parts(data, len) }
+        let s = match unsafe { to_slice(data, len) } {
+            Some(s) => s,
+            None => return core::ptr::null_mut(),
         };
 
         match ProtectedBuffer::new(s) {
@@ -103,18 +107,26 @@ pub unsafe extern "C" fn lsec_wasm_buffer_free(buf: *mut LsecWasmBuffer) {
 
 #[no_mangle]
 pub unsafe extern "C" fn lsec_wasm_buffer_len(buf: *const LsecWasmBuffer) -> usize {
-    if buf.is_null() {
-        return 0;
-    }
-    unsafe { (*buf).0.len() }
+    let result = catch_unwind(|| {
+        if buf.is_null() {
+            return 0;
+        }
+        unsafe { (*buf).0.len() }
+    });
+
+    result.unwrap_or(0)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn lsec_wasm_buffer_data(buf: *const LsecWasmBuffer) -> *const u8 {
-    if buf.is_null() {
-        return core::ptr::null();
-    }
-    unsafe { (*buf).0.as_slice().as_ptr() }
+    let result = catch_unwind(|| {
+        if buf.is_null() {
+            return core::ptr::null();
+        }
+        unsafe { (*buf).0.as_slice().as_ptr() }
+    });
+
+    result.unwrap_or(core::ptr::null())
 }
 
 #[no_mangle]
@@ -141,20 +153,20 @@ fn parse_cipher(cipher_id: u8) -> Option<CipherSuite> {
 }
 
 unsafe fn to_slice<'a>(ptr: *const u8, len: usize) -> Option<&'a [u8]> {
-    if ptr.is_null() {
-        None
-    } else if len == 0 {
+    if len == 0 {
         Some(&[][..])
+    } else if ptr.is_null() {
+        None
     } else {
         Some(unsafe { slice::from_raw_parts(ptr, len) })
     }
 }
 
 unsafe fn to_slice_mut<'a>(ptr: *mut u8, len: usize) -> Option<&'a mut [u8]> {
-    if ptr.is_null() {
-        None
-    } else if len == 0 {
+    if len == 0 {
         Some(&mut [][..])
+    } else if ptr.is_null() {
+        None
     } else {
         Some(unsafe { slice::from_raw_parts_mut(ptr, len) })
     }
@@ -183,22 +195,13 @@ pub unsafe extern "C" fn lsec_wasm_vault_seal(
             return core::ptr::null_mut();
         }
 
-        let plain_slice = if plaintext_len == 0 {
-            &[][..]
-        } else {
-            if plaintext.is_null() {
-                return core::ptr::null_mut();
-            }
-            unsafe { slice::from_raw_parts(plaintext, plaintext_len) }
+        let plain_slice = match unsafe { to_slice(plaintext, plaintext_len) } {
+            Some(s) => s,
+            None => return core::ptr::null_mut(),
         };
-
-        if passphrase.is_null() && passphrase_len > 0 {
-            return core::ptr::null_mut();
-        }
-        let pass_slice = if passphrase_len == 0 {
-            &[][..]
-        } else {
-            unsafe { slice::from_raw_parts(passphrase, passphrase_len) }
+        let pass_slice = match unsafe { to_slice(passphrase, passphrase_len) } {
+            Some(s) => s,
+            None => return core::ptr::null_mut(),
         };
 
         let cipher = match parse_cipher(cipher_id) {
@@ -237,13 +240,9 @@ pub unsafe extern "C" fn lsec_wasm_vault_unseal(
         }
 
         let v_slice = unsafe { slice::from_raw_parts(vault_bytes, vault_len) };
-        let pass_slice = if passphrase_len == 0 {
-            &[][..]
-        } else {
-            if passphrase.is_null() {
-                return core::ptr::null_mut();
-            }
-            unsafe { slice::from_raw_parts(passphrase, passphrase_len) }
+        let pass_slice = match unsafe { to_slice(passphrase, passphrase_len) } {
+            Some(s) => s,
+            None => return core::ptr::null_mut(),
         };
 
         match unseal(v_slice, pass_slice) {
@@ -595,7 +594,7 @@ mod tests {
     fn test_wasm_ready() {
         assert_eq!(lsec_wasm_is_ready(), 1);
         assert_eq!(lsec_wasm_version_major(), 0);
-        assert_eq!(lsec_wasm_version_minor(), 2);
+        assert_eq!(lsec_wasm_version_minor(), 3);
         assert_eq!(lsec_wasm_version_patch(), 0);
     }
 
@@ -774,7 +773,6 @@ mod tests {
         };
         assert!(!updated_ptr.is_null());
 
-        // unseal transparent check
         let handle_updated = unsafe {
             lsec_wasm_vault_unseal(updated_ptr, updated_len, pass1.as_ptr(), pass1.len())
         };

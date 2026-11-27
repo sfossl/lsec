@@ -24,22 +24,27 @@ pub fn verify_code_at(
     let mut is_valid = false;
 
     for offset in -drift..=drift {
-        let step_offset = offset * (step_secs as i64);
-        let check_time = match (timestamp as i64).checked_add(step_offset) {
-            Some(t) if t >= 0 => t as u64,
-            _ => continue,
+        let Some(step_delta) = offset.unsigned_abs().checked_mul(step_secs) else {
+            continue;
+        };
+        let check_time = if offset < 0 {
+            timestamp.checked_sub(step_delta)
+        } else {
+            timestamp.checked_add(step_delta)
+        };
+        let Some(check_time) = check_time else {
+            continue;
         };
 
-        if let Ok(expected) = generate_code(
+        let expected = generate_code(
             secret,
             check_time,
             config.totp_step_seconds,
             config.totp_digits,
             algorithm,
-        ) {
-            if constant_time_eq(candidate_bytes, expected.as_bytes()) {
-                is_valid = true;
-            }
+        )?;
+        if constant_time_eq(candidate_bytes, expected.as_bytes()) {
+            is_valid = true;
         }
     }
 
@@ -138,5 +143,40 @@ mod tests {
             !verify_code_at(RFC_SECRET, "000000", time, &config, TotpAlgorithm::Sha1)
                 .expect("verify ok")
         );
+    }
+
+    #[test]
+    fn test_verify_u64_max_timestamp_and_large_step() {
+        let step = i64::MAX as u64;
+        let config = SecurityConfig::builder()
+            .totp_step_seconds(step)
+            .totp_drift_steps(2)
+            .build();
+        let code = generate_code(
+            RFC_SECRET,
+            u64::MAX,
+            step,
+            config.totp_digits,
+            TotpAlgorithm::Sha1,
+        )
+        .expect("gen ok");
+
+        assert!(
+            verify_code_at(RFC_SECRET, &code, u64::MAX, &config, TotpAlgorithm::Sha1)
+                .expect("verify ok")
+        );
+    }
+
+    #[test]
+    fn test_verify_invalid_digits_propagates_error() {
+        let config = SecurityConfig::builder().totp_digits(5).build();
+        let res = verify_code_at(
+            RFC_SECRET,
+            "12345",
+            1234567890,
+            &config,
+            TotpAlgorithm::Sha1,
+        );
+        assert!(matches!(res, Err(TotpError::InvalidDigits(5))));
     }
 }

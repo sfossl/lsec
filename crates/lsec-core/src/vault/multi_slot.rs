@@ -36,9 +36,8 @@ impl MultiSlotVault {
         cipher: CipherSuite,
         config: &SecurityConfig,
     ) -> Result<Vec<u8>, VaultError> {
-        let mut dek_bytes = [0u8; DEFAULT_KEY_LEN_BYTES];
-        getrandom::getrandom(&mut dek_bytes).map_err(|_| CryptoError::RngError)?;
-        let dek = ProtectedArray::<DEFAULT_KEY_LEN_BYTES>::new(dek_bytes);
+        let mut dek = ProtectedArray::<DEFAULT_KEY_LEN_BYTES>::zeroed();
+        getrandom::getrandom(dek.as_mut_array()).map_err(|_| CryptoError::RngError)?;
 
         let mut container = vec![0u8; MULTI_HEADER_SIZE];
         container[0..6].copy_from_slice(&MULTI_VAULT_MAGIC);
@@ -247,9 +246,9 @@ impl MultiSlotVault {
 
             if let Ok(unwrapped_buf) = unwrapped_res {
                 if unwrapped_buf.len() == DEFAULT_KEY_LEN_BYTES {
-                    let mut dek_arr = [0u8; DEFAULT_KEY_LEN_BYTES];
-                    dek_arr.copy_from_slice(&unwrapped_buf);
-                    return Ok(ProtectedArray::<DEFAULT_KEY_LEN_BYTES>::new(dek_arr));
+                    let mut dek = ProtectedArray::<DEFAULT_KEY_LEN_BYTES>::zeroed();
+                    dek.as_mut_array().copy_from_slice(&unwrapped_buf);
+                    return Ok(dek);
                 }
             }
         }
@@ -265,6 +264,14 @@ impl MultiSlotVault {
         config: &SecurityConfig,
         dek: &ProtectedArray<DEFAULT_KEY_LEN_BYTES>,
     ) -> Result<(), VaultError> {
+        if !(MIN_ARGON2_MEMORY_KIB..=MAX_ARGON2_MEMORY_KIB).contains(&config.argon2_memory_kib)
+            || !(MIN_ARGON2_ITERATIONS..=MAX_ARGON2_ITERATIONS).contains(&config.argon2_iterations)
+            || !(MIN_ARGON2_PARALLELISM..=MAX_ARGON2_PARALLELISM)
+                .contains(&config.argon2_parallelism)
+        {
+            return Err(VaultError::InvalidKdfParameters);
+        }
+
         let offset = HEADER_STATIC_SIZE + (slot_index * SLOT_SIZE);
         let salt = generate_salt()?;
         let kek = derive_key_argon2id(passphrase, &salt, config)?;
@@ -526,5 +533,18 @@ mod tests {
 
         let err = MultiSlotVault::update_payload(&mut short_buf, b"pass", b"new").unwrap_err();
         assert!(matches!(err, VaultError::HeaderTooShort));
+    }
+
+    #[test]
+    fn test_write_slot_rejects_out_of_bounds_kdf() {
+        let bad_config = SecurityConfig::builder().argon2_memory_kib(0).build();
+        let err = MultiSlotVault::create(
+            b"payload",
+            b"pass",
+            CipherSuite::ChaCha20Poly1305,
+            &bad_config,
+        )
+        .unwrap_err();
+        assert!(matches!(err, VaultError::InvalidKdfParameters));
     }
 }

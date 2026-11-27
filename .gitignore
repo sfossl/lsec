@@ -1,5 +1,6 @@
 # folders
 target/
+__pycache__/
 
 # compiled bins and libs
 *.so
@@ -8,6 +9,7 @@ target/
 *.wasm
 *.a
 *.lib
+*.py[cod]
 
-#files
+# files
 lsec.code-workspace

@@ -1,6 +1,6 @@
 ## Overview
 
-`bindings/go` provides an idiomatic Go package for the `lsec` defense-in-depth security engine, integrating native page-locked memory, process dump suppression, multi-slot vault containers, local envelope encryption and TOTP verification via Cgo over the `lsec-ffi` shared library.
+`bindings/go` provides an idiomatic Go package for the `lsec` defence-in-depth security engine, integrating native page-locked memory, process dump suppression, multi-slot vault containers, local envelope encryption and TOTP verification via Cgo over the `lsec-ffi` shared library.
 
 ## Installation
 
@@ -38,13 +38,11 @@ func main() {
 	passphrase := []byte("passphrase")
 	data := []byte("data")
 
-	// seal payload with authenticated encryption
 	sealed, err := lsec.Seal(data, passphrase, lsec.CipherChaCha20Poly1305)
 	if err != nil {
 		panic(err)
 	}
 
-	// decrypt back into page-locked buffer
 	buf, err := lsec.Unseal(sealed, passphrase)
 	if err != nil {
 		panic(err)
@@ -58,7 +56,7 @@ func main() {
 ## Memory Management
 
 * **Garbage collection**: Each `Buffer` registers a `runtime.SetFinalizer` callback to automatically release memory if dropped without an explicit free.
-* **Deterministic cleanup**: Call `buf.Free()` or `buf.Wipe()` immediately after completing sensitive operations to ensure immediate zeroization without waiting for GC passes.
+* **Deterministic cleanup**: Call `buf.Free()` or `buf.Wipe()` immediately after completing sensitive operations to ensure immediate zeroisation without waiting for GC passes.
 * **Heap isolation**: Underlying bytes reside in locked native memory pages protected against crash dumps and memory swapping.
 
 ## Connected Topics

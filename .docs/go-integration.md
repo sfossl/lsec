@@ -5,7 +5,7 @@
 `bindings/go` provides an idiomatic Go package using CGo over the `lsec-ffi` C-ABI.
 
 ### Documentation Guides
-[Getting Started](getting-started.md) | [Memory Guard](memguard.md) | [Vault](vault.md) | [TOTP](totp.md) | [C Integration](c-integration.md) | [Go Integration](go-integration.md) | [WebAssembly](wasm-integration.md) | [API Reference](api-reference.md)
+[Getting Started](getting-started.md) | [Memory Guard](memguard.md) | [Vault](vault.md) | [TOTP](totp.md) | [C Integration](c-integration.md) | [Go Integration](go-integration.md) | [WebAssembly](wasm-integration.md) | [Python Integration](python-integration.md) | [API Reference](api-reference.md)
 
 ## Installation
 
@@ -15,7 +15,7 @@ go get github.com/sfossl/lsec/bindings/go
 
 ## Prerequisites
 
-The Go package links against `liblsec_ffi`. Ensure the native library is built and accessible in your library search path:
+The Go package links against `liblsec_ffi`. Ensure the native library is built and accessible in the library search path:
 
 ```bash
 cargo build --release -p lsec-ffi
@@ -33,7 +33,7 @@ go test -v ./...
 The Go `Buffer` struct manages an underlying C-allocated page-locked buffer:
 
 - **Garbage Collection**: Each `Buffer` registers a `runtime.SetFinalizer` callback to free unreferenced memory automatically.
-- **Explicit Freeing**: For deterministic zeroization, call `buf.Free()` or `buf.Wipe()` immediately after use.
+- **Explicit Freeing**: For deterministic zeroisation, call `buf.Free()` or `buf.Wipe()` immediately after use.
 - **Deref Safety**: Buffer accessors call `runtime.KeepAlive(b)` to prevent premature GC sweeps during native memory read operations.
 
 ## Minimal Working Example

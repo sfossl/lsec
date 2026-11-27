@@ -18,7 +18,7 @@ pub extern "C" fn lsec_version_major() -> u32 {
 
 #[no_mangle]
 pub extern "C" fn lsec_version_minor() -> u32 {
-    2
+    3
 }
 
 #[no_mangle]
@@ -43,7 +43,7 @@ mod tests {
     #[test]
     fn test_version_exports() {
         assert_eq!(lsec_version_major(), 0);
-        assert_eq!(lsec_version_minor(), 2);
+        assert_eq!(lsec_version_minor(), 3);
         assert_eq!(lsec_version_patch(), 0);
     }
 
@@ -92,7 +92,7 @@ mod tests {
                 secret.len(),
                 pass.as_ptr(),
                 pass.len(),
-                1, // ChaCha20Poly1305
+                1,
                 &mut out_bytes,
                 &mut out_len,
             )
@@ -147,7 +147,7 @@ mod tests {
                 timestamp,
                 30,
                 6,
-                0, // Sha1
+                0,
                 code_buf.as_mut_ptr(),
                 code_buf.len(),
             )

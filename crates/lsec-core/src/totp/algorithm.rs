@@ -4,7 +4,7 @@ use sha2::{Sha256, Sha512};
 use zeroize::Zeroize;
 
 use super::error::TotpError;
-use crate::config::{SecurityConfig, MAX_TOTP_DIGITS, MIN_TOTP_DIGITS};
+use crate::config::SecurityConfig;
 
 type HmacSha1 = Hmac<Sha1>;
 type HmacSha256 = Hmac<Sha256>;
@@ -19,10 +19,6 @@ pub enum TotpAlgorithm {
 }
 
 fn modulo_for_digits(digits: u32) -> Result<u32, TotpError> {
-    if !(MIN_TOTP_DIGITS..=MAX_TOTP_DIGITS).contains(&digits) {
-        return Err(TotpError::InvalidDigits(digits));
-    }
-
     match digits {
         6 => Ok(1_000_000),
         7 => Ok(10_000_000),
@@ -35,31 +31,38 @@ fn compute_hmac(
     algorithm: TotpAlgorithm,
     secret: &[u8],
     counter: u64,
-) -> Result<Vec<u8>, TotpError> {
+) -> Result<([u8; 64], usize), TotpError> {
     let counter_bytes = counter.to_be_bytes();
+    let mut out = [0u8; 64];
 
-    let digest = match algorithm {
+    let len = match algorithm {
         TotpAlgorithm::Sha1 => {
             let mut mac =
                 HmacSha1::new_from_slice(secret).map_err(|_| TotpError::InvalidKeyLength)?;
             mac.update(&counter_bytes);
-            mac.finalize().into_bytes().to_vec()
+            let bytes = mac.finalize().into_bytes();
+            out[..bytes.len()].copy_from_slice(&bytes);
+            bytes.len()
         }
         TotpAlgorithm::Sha256 => {
             let mut mac =
                 HmacSha256::new_from_slice(secret).map_err(|_| TotpError::InvalidKeyLength)?;
             mac.update(&counter_bytes);
-            mac.finalize().into_bytes().to_vec()
+            let bytes = mac.finalize().into_bytes();
+            out[..bytes.len()].copy_from_slice(&bytes);
+            bytes.len()
         }
         TotpAlgorithm::Sha512 => {
             let mut mac =
                 HmacSha512::new_from_slice(secret).map_err(|_| TotpError::InvalidKeyLength)?;
             mac.update(&counter_bytes);
-            mac.finalize().into_bytes().to_vec()
+            let bytes = mac.finalize().into_bytes();
+            out[..bytes.len()].copy_from_slice(&bytes);
+            bytes.len()
         }
     };
 
-    Ok(digest)
+    Ok((out, len))
 }
 
 pub fn generate_code(
@@ -79,8 +82,8 @@ pub fn generate_code(
     let modulo = modulo_for_digits(digits)?;
     let counter = timestamp / step_seconds;
 
-    let mut hash = compute_hmac(algorithm, secret, counter)?;
-    let offset = (hash[hash.len() - 1] & 0x0f) as usize;
+    let (mut hash, hash_len) = compute_hmac(algorithm, secret, counter)?;
+    let offset = (hash[hash_len - 1] & 0x0f) as usize;
 
     let binary_code = ((u32::from(hash[offset] & 0x7f)) << 24)
         | ((u32::from(hash[offset + 1])) << 16)

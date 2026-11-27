@@ -1,0 +1,91 @@
+name: release-python
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-wheels:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            lib: liblsec_ffi.so
+            plat: manylinux_2_39_x86_64
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            lib: liblsec_ffi.so
+            plat: manylinux_2_39_aarch64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            lib: liblsec_ffi.dylib
+            plat: macosx_11_0_arm64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            lib: lsec_ffi.dll
+            plat: win_amd64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: cargo build --release -p lsec-ffi --target ${{ matrix.target }}
+      - name: Bundle native library
+        shell: bash
+        run: |
+          mkdir -p bindings/python/lsec/_lib
+          cp target/${{ matrix.target }}/release/${{ matrix.lib }} bindings/python/lsec/_lib/${{ matrix.lib }}
+      - name: Verify bundled package
+        shell: bash
+        run: LSEC_REQUIRE_LIB=1 PYTHONPATH=bindings/python python -m unittest discover -s bindings/python/tests -v
+      - name: Build platform wheel
+        shell: bash
+        run: |
+          python -m pip install --upgrade build wheel
+          python -m build --wheel bindings/python --outdir dist/
+          python -m wheel tags --platform-tag ${{ matrix.plat }} --remove dist/*.whl
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.target }}
+          path: dist/*.whl
+
+  build-sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: |
+          python -m pip install --upgrade build
+          python -m build --sdist bindings/python --outdir dist/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+
+  publish:
+    needs: [build-wheels, build-sdist]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Verify distributions and checksums
+        run: |
+          python -m pip install --upgrade twine
+          twine check dist/*
+          sha256sum dist/*
+      - uses: pypa/gh-action-pypi-publish@release/v1

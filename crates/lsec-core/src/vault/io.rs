@@ -171,7 +171,6 @@ mod tests {
             b"version-1"
         );
 
-        // atomic update
         seal_to_file(
             &vault_file,
             b"version-2",
@@ -271,7 +270,6 @@ mod tests {
         let config = test_fast_config();
 
         fs::create_dir_all(&temp_dir).expect("dir ok");
-        // write an abandoned temp file in same directory
         let abandoned_temp = temp_dir.join(".clean.db.tmp.deadbeef");
         fs::write(&abandoned_temp, b"stale-data").expect("write stale ok");
 

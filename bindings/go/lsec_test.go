@@ -9,7 +9,7 @@ import (
 
 func TestVersion(t *testing.T) {
 	maj, min, patch := Version()
-	if maj != 0 || min != 2 || patch != 0 {
+	if maj != 0 || min != 3 || patch != 0 {
 		t.Fatalf("unexpected version: %d.%d.%d", maj, min, patch)
 	}
 }
@@ -62,7 +62,6 @@ func TestVaultSealAndUnseal(t *testing.T) {
 		t.Fatalf("expected unsealed %q, got %q", plain, unsealed.Bytes())
 	}
 
-	// wrong password fails
 	_, err = Unseal(sealed, []byte("wrong-password"))
 	if err == nil {
 		t.Fatalf("expected error on unseal with wrong password")
@@ -121,7 +120,6 @@ func TestTOTPFlow(t *testing.T) {
 		t.Fatalf("expected code %s to be valid", code)
 	}
 
-	// invalid code fails
 	valid, err = VerifyTOTP(buf.Bytes(), "000000", timestamp, 30, 6, 1, TotpSha1)
 	if err != nil {
 		t.Fatalf("VerifyTOTP with bad code failed: %v", err)
@@ -189,7 +187,6 @@ func TestMultiVaultFlow(t *testing.T) {
 		t.Fatalf("MultiVaultUpdatePayload failed: %v", err)
 	}
 
-	// test transparent routing through standard Unseal
 	unsealed, err := Unseal(updatedContainer, pass1)
 	if err != nil {
 		t.Fatalf("Unseal failed: %v", err)
@@ -199,6 +196,10 @@ func TestMultiVaultFlow(t *testing.T) {
 		t.Fatalf("expected unsealed %q, got %q", updatedPayload, unsealed.Bytes())
 	}
 
+	if err := MultiVaultRemoveSlot(updatedContainer, pass0, -1); err != ErrInvalidParam {
+		t.Fatalf("expected ErrInvalidParam for negative slot index, got %v", err)
+	}
+
 	if err := MultiVaultRemoveSlot(updatedContainer, pass0, 1); err != nil {
 		t.Fatalf("MultiVaultRemoveSlot failed: %v", err)
 	}
@@ -206,6 +207,93 @@ func TestMultiVaultFlow(t *testing.T) {
 	_, err = MultiVaultOpen(updatedContainer, pass1)
 	if err == nil {
 		t.Fatalf("expected open with removed slot to fail")
+	}
+}
+
+func TestBufferZeroedAndWrite(t *testing.T) {
+	buf, err := NewZeroedBuffer(8)
+	if err != nil {
+		t.Fatalf("NewZeroedBuffer failed: %v", err)
+	}
+	defer buf.Free()
+
+	if !bytes.Equal(buf.Bytes(), make([]byte, 8)) {
+		t.Fatalf("expected zeroed buffer, got %v", buf.Bytes())
+	}
+
+	if err := buf.Write([]byte("abcd"), 2); err != nil {
+		t.Fatalf("Write failed: %v", err)
+	}
+	expected := []byte{0, 0, 'a', 'b', 'c', 'd', 0, 0}
+	if !bytes.Equal(buf.Bytes(), expected) {
+		t.Fatalf("expected %v, got %v", expected, buf.Bytes())
+	}
+
+	if err := buf.Write([]byte("x"), -1); err != ErrInvalidParam {
+		t.Fatalf("expected ErrInvalidParam for negative offset, got %v", err)
+	}
+	if err := buf.Write([]byte("xyz"), 6); err != ErrBufferTooSmall {
+		t.Fatalf("expected ErrBufferTooSmall for out-of-bounds write, got %v", err)
+	}
+	if err := buf.Write([]byte{}, 8); err != nil {
+		t.Fatalf("expected empty write at end to succeed, got %v", err)
+	}
+}
+
+func TestEmptySliceInputs(t *testing.T) {
+	buf, err := NewBuffer([]byte{})
+	if err != nil {
+		t.Fatalf("NewBuffer empty failed: %v", err)
+	}
+	defer buf.Free()
+	if buf.Len() != 0 {
+		t.Fatalf("expected len 0, got %d", buf.Len())
+	}
+
+	pass := []byte("passphrase")
+	sealed, err := Seal([]byte{}, pass, CipherChaCha20Poly1305)
+	if err != nil {
+		t.Fatalf("Seal empty failed: %v", err)
+	}
+	unsealed, err := Unseal(sealed, pass)
+	if err != nil {
+		t.Fatalf("Unseal empty failed: %v", err)
+	}
+	defer unsealed.Free()
+	if len(unsealed.Bytes()) != 0 {
+		t.Fatalf("expected empty unsealed bytes, got %d", len(unsealed.Bytes()))
+	}
+
+	container, err := MultiVaultCreate([]byte{}, pass, CipherChaCha20Poly1305)
+	if err != nil {
+		t.Fatalf("MultiVaultCreate empty failed: %v", err)
+	}
+	opened, err := MultiVaultOpen(container, pass)
+	if err != nil {
+		t.Fatalf("MultiVaultOpen empty failed: %v", err)
+	}
+	defer opened.Free()
+	if len(opened.Bytes()) != 0 {
+		t.Fatalf("expected empty opened bytes, got %d", len(opened.Bytes()))
+	}
+}
+
+func TestVaultAES256GCM(t *testing.T) {
+	plain := []byte("aes-256-gcm-go-payload")
+	pass := []byte("aes-passphrase")
+
+	sealed, err := Seal(plain, pass, CipherAES256GCM)
+	if err != nil {
+		t.Fatalf("Seal AES-256-GCM failed: %v", err)
+	}
+	unsealed, err := Unseal(sealed, pass)
+	if err != nil {
+		t.Fatalf("Unseal AES-256-GCM failed: %v", err)
+	}
+	defer unsealed.Free()
+
+	if !bytes.Equal(unsealed.Bytes(), plain) {
+		t.Fatalf("expected %q, got %q", plain, unsealed.Bytes())
 	}
 }
 
