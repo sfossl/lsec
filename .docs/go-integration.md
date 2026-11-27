@@ -33,7 +33,7 @@ go test -v ./...
 The Go `Buffer` struct manages an underlying C-allocated page-locked buffer:
 
 - **Garbage Collection**: Each `Buffer` registers a `runtime.SetFinalizer` callback to free unreferenced memory automatically.
-- **Explicit Freeing**: For deterministic zeroization, call `buf.Free()` or `buf.Wipe()` immediately after use.
+- **Explicit Freeing**: For deterministic zeroisation, call `buf.Free()` or `buf.Wipe()` immediately after use.
 - **Deref Safety**: Buffer accessors call `runtime.KeepAlive(b)` to prevent premature GC sweeps during native memory read operations.
 
 ## Minimal Working Example
