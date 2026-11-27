@@ -1,4 +1,5 @@
 let wasmExports = null;
+let initPromise = null;
 
 function ensureInitialized() {
   if (!wasmExports) {
@@ -77,6 +78,16 @@ export async function init(wasmSource) {
   if (wasmExports) {
     return;
   }
+  if (!initPromise) {
+    initPromise = _initImpl(wasmSource).catch((err) => {
+      initPromise = null;
+      throw err;
+    });
+  }
+  return initPromise;
+}
+
+async function _initImpl(wasmSource) {
 
   let randomFill = null;
   if (typeof globalThis.crypto?.getRandomValues === 'function') {
@@ -156,6 +167,7 @@ export class Buffer {
   #length = 0;
 
   constructor(handle, length) {
+    ensureInitialized();
     if (!handle || handle === 0) {
       throw new Error('lsec: invalid buffer handle');
     }
@@ -456,6 +468,17 @@ export class MultiSlotVault {
   }
 }
 
+function totpErrorMessage(code) {
+  const messages = {
+    [-1]: 'null pointer',
+    [-2]: 'invalid utf-8 or code encoding',
+    [-3]: 'output buffer too small',
+    [-4]: 'invalid totp parameters or empty secret',
+    [-5]: 'totp calculation failed',
+  };
+  return messages[code] || `code ${code}`;
+}
+
 export class TOTP {
   static decodeBase32(base32Secret) {
     ensureInitialized();
@@ -498,7 +521,7 @@ export class TOTP {
       );
 
       if (status !== 0) {
-        throw new Error(`lsec: totp generation failed with code ${status}`);
+        throw new Error(`lsec: totp generation failed: ${totpErrorMessage(status)}`);
       }
 
       const codeBytes = copyFromWasm(codePtr, digits);
@@ -536,7 +559,7 @@ export class TOTP {
       );
 
       if (result < 0) {
-        throw new Error(`lsec: totp verification error with code ${result}`);
+        throw new Error(`lsec: totp verification error: ${totpErrorMessage(result)}`);
       }
 
       return result === 1;
