@@ -21,7 +21,7 @@ from .totp import Totp, TotpAlgorithm
 from .vault import CipherSuite, MultiSlotVault, seal, seal_to_file, unseal, unseal_from_file
 from . import totp, vault
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = [
     "AllocationError",
